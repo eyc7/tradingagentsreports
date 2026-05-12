@@ -279,6 +279,23 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
 
 .empty-state { color: var(--muted); padding: 40px 0; text-align: center; }
 
+/* Small "jump back to FINAL DECISION" button in the viewer topline. */
+.jump-to-decision {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.jump-to-decision:hover { background: var(--accent); color: #fff; }
+
+/* Anchor offset so smooth-scroll lands cleanly under any sticky chrome. */
+.decision-banner, .report-card { scroll-margin-top: 12px; }
+
 /* ----- DECISION BANNER (top of viewer) ----- */
 
 .decision-banner {
@@ -389,18 +406,37 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
   .viewer .topline { padding: 8px 12px; }
   .viewer .body { padding: 14px; overflow: visible; }
 
-  /* Smaller cards, tables overflow-x scroll instead of breaking the layout. */
-  .report-card { padding: 12px; }
-  .report-card h4 { font-size: 12px; }
+  /* Cap content width to ~370px so long lines stay readable on phones. */
+  .viewer .body {
+    padding: 10px 8px;
+    max-width: 370px;
+    margin: 0 auto;
+  }
+  .report-card { padding: 10px; border-radius: 6px; }
+  .report-card h4 { font-size: 12px; margin-bottom: 6px; }
   .decision-banner { padding: 10px 12px; }
+
+  /* Sticky topbar needs a bigger scroll-margin so jumps don't hide under it. */
+  .decision-banner, .report-card { scroll-margin-top: 56px; }
+  /* Smaller jump button on phones. */
+  .jump-to-decision { padding: 3px 8px; font-size: 11px; }
+
+  /* Markdown: tighten indents, break long words/URLs, scroll wide things. */
+  .md { font-size: 13px; }
+  .md p, .md li { overflow-wrap: anywhere; word-break: break-word; }
+  .md ul, .md ol { padding-left: 18px; }
+  .md blockquote { padding: 4px 8px; margin: 6px 0; }
+  .md h1 { font-size: 18px; }
+  .md h2 { font-size: 16px; }
+  .md h3 { font-size: 14px; }
+  .md h4 { font-size: 13px; }
+  .md pre { padding: 8px 10px; font-size: 12px; }
+  .md code { font-size: 0.88em; }
   .md table {
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     max-width: 100%;
   }
-  .md h1 { font-size: 18px; }
-  .md h2 { font-size: 16px; }
-  .md h3 { font-size: 14px; }
-  .md pre { font-size: 12px; }
+  .md th, .md td { padding: 4px 8px; font-size: 12px; }
 }

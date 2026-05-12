@@ -312,6 +312,18 @@ function buildRunView(run) {
   // Currently selected sidebar agent (null = show full complete_report).
   let selectedAgent = null;
 
+  // Scroll helpers — work for both the desktop layout (viewer .body is the
+  // scrollable parent) and mobile (the page itself scrolls).
+  function scrollToDecision() {
+    document.querySelector(".decision-banner")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function scrollPastBanner() {
+    const body = document.querySelector(".viewer .body");
+    if (!body) return;
+    const target = body.querySelector(".report-card");
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   const sidebar = el("aside", { className: "sidebar" });
   function renderSidebar() {
     sidebar.replaceChildren();
@@ -328,7 +340,15 @@ function buildRunView(run) {
             active ? "active" : "",
           ].filter(Boolean).join(" "),
           onclick: has
-            ? () => { selectedAgent = active ? null : a.key; renderSidebar(); renderViewer(); }
+            ? () => {
+                selectedAgent = active ? null : a.key;
+                renderSidebar();
+                renderViewer();
+                // Jump past the decision banner to the report the user just
+                // picked, instead of forcing them to scroll past the banner.
+                if (selectedAgent) scrollPastBanner();
+                else scrollToDecision();
+              }
             : null,
           title: has ? a.label : `${a.label} — no report in this run`,
         },
@@ -343,7 +363,12 @@ function buildRunView(run) {
     const fullActive = selectedAgent === null;
     sidebar.append(el("div", {
       className: `agent-row has-report ${fullActive ? "active" : ""}`,
-      onclick: () => { selectedAgent = null; renderSidebar(); renderViewer(); },
+      onclick: () => {
+        selectedAgent = null;
+        renderSidebar();
+        renderViewer();
+        scrollPastBanner();
+      },
       title: "Show the combined complete_report.md",
     }, el("span", { className: "dot" }), el("span", null, "Complete Report")));
   }
@@ -398,6 +423,13 @@ function buildRunView(run) {
       el("span", { className: "meta" },
         `${(run.reports || []).length} reports`),
       el("div", { style: { flex: 1 } }),
+      run.decision
+        ? el("button", {
+            className: "jump-to-decision",
+            title: "Jump back to the FINAL DECISION at the top",
+            onclick: scrollToDecision,
+          }, "↑ Final Decision")
+        : null,
     ),
     viewerBody,
   );

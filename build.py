@@ -350,9 +350,11 @@ def scan_web_run(run_dir: Path) -> Run | None:
         source="web",
         decision=decision_text,
         rating=parse_rating(meta.get("decision")) or parse_rating(decision_text),
-        research_decision=meta.get("research_decision") or parse_rating(latest_report.get("investment_plan")),
-        trader_decision=meta.get("trader_decision") or parse_rating(latest_report.get("trader_investment_plan")),
-        portfolio_decision=meta.get("portfolio_decision") or parse_rating(latest_report.get("final_trade_decision")),
+        # The backend's run.json stores these as raw "BUY"/"SELL"/"HOLD" strings;
+        # normalize through parse_rating so the front-end's CSS classes match.
+        research_decision=parse_rating(meta.get("research_decision")) or parse_rating(latest_report.get("investment_plan")),
+        trader_decision=parse_rating(meta.get("trader_decision")) or parse_rating(latest_report.get("trader_investment_plan")),
+        portfolio_decision=parse_rating(meta.get("portfolio_decision")) or parse_rating(latest_report.get("final_trade_decision")),
         llm_provider=(meta.get("config") or {}).get("llm_provider"),
         deep_think_llm=(meta.get("config") or {}).get("deep_think_llm"),
         reports=reports,
@@ -413,7 +415,10 @@ def collect() -> list[Run]:
         if (priority[run.source], len(run.reports)) > (priority[existing.source], len(existing.reports)):
             grouped[key] = run
 
-    runs = list(grouped.values())
+    # Drop runs that never reached a portfolio-manager decision — they're
+    # incomplete (often a crashed/killed CLI run) and not useful for the
+    # archive view.
+    runs = [r for r in grouped.values() if r.portfolio_decision]
     runs.sort(key=lambda r: r.created_at, reverse=True)
     return runs
 
