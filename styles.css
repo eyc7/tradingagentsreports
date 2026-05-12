@@ -383,3 +383,74 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
     max-height: 45vh;
   }
 }
+
+/* Phone-sized viewports: drop fixed panels, let the whole page scroll. */
+@media (max-width: 700px) {
+  html, body { overflow-y: auto; }
+  .app { height: auto; min-height: 100vh; }
+
+  .topbar {
+    padding: 8px 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .topbar h1 { font-size: 15px; }
+  .topbar .meta { font-size: 11px; }
+
+  #page { overflow: visible; height: auto; }
+
+  /* Home: stack intro on top of the runs list. */
+  .home {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    height: auto;
+    overflow: visible;
+  }
+  .home .intro {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 14px;
+    overflow: visible;
+  }
+  .home .runs { padding: 14px; overflow: visible; }
+  .run-card { padding: 10px; }
+
+  /* Run page: hide the agent sidebar; viewer + reports panel flow vertically
+     under page scroll instead of each scrolling independently. */
+  .run-page {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    height: auto;
+    overflow: visible;
+  }
+  .run-page .sidebar { display: none; }
+  .viewer { overflow: visible; }
+  .viewer .topline { padding: 8px 12px; }
+  .viewer .body { padding: 14px; overflow: visible; }
+  .tool-panel {
+    grid-column: 1 / -1;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    overflow: visible;
+    max-height: none;
+  }
+  .tool-panel .body { overflow: visible; padding: 12px; }
+
+  /* Smaller cards, tables overflow-x scroll instead of breaking the layout. */
+  .report-card { padding: 12px; }
+  .report-card h4 { font-size: 12px; }
+  .decision-banner { padding: 10px 12px; }
+  .md table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+  .md h1 { font-size: 18px; }
+  .md h2 { font-size: 16px; }
+  .md h3 { font-size: 14px; }
+  .md pre { font-size: 12px; }
+}

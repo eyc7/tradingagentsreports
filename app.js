@@ -391,7 +391,10 @@ function buildRunView(run) {
     selectedAgent = agentKey;
     renderSidebar();
     renderViewer();
+    // Reset the internal scroll on desktop, then scroll the viewer back
+    // into view (matters on mobile where the right panel sits below).
     document.querySelector(".viewer .body")?.scrollTo({ top: 0, behavior: "smooth" });
+    document.querySelector(".viewer")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   // Resizer between viewer and right panel.
