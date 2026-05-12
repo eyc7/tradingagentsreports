@@ -1,14 +1,26 @@
 #!/usr/bin/env python3
-"""Generate static-web data from the repository's `reports/` directory.
+"""Generate static-web data from every available source of past TradingAgents runs.
 
-Scans `<repo>/reports/<TICKER>_<YYYYMMDD>_<HHMMSS>/` directories, parses out
-final/judge decisions, and emits:
+Scans three locations and merges them into a single manifest:
 
+1. `<repo>/reports/<TICKER>_<YYYYMMDD>_<HHMMSS>/`
+   - The "promoted" CLI format with subfolders 1_analysts/, 2_research/, etc.
+   - Has a bundled `complete_report.md`.
+
+2. `~/.tradingagents/logs/<TICKER>/<YYYY-MM-DD>/reports/<flat-files>`
+   - The raw graph-output format with per-role markdown files.
+   - No `complete_report.md`; we synthesize one.
+
+3. `~/.tradingagents/web/runs/<run_id>/{run.json,events.jsonl}`
+   - The live web-app's persisted event log. We parse `report` events out of
+     events.jsonl and use run.json for metadata. Only `completed` runs are
+     included; running/queued/error runs are skipped.
+
+Output:
     static-web/data/manifest.json          — list of run summaries
     static-web/data/runs/<run_id>.json     — full run detail incl. report bodies
 
-The generated JSON is consumed by `static-web/app.js`. Running this script is
-idempotent; the `data/` directory is wiped and rebuilt on every invocation.
+Run with: `python3 build.py` from the static-web directory.
 """
 
 from __future__ import annotations
@@ -24,37 +36,74 @@ from pathlib import Path
 # Layout: <static-web>/build.py and <static-web>/../reports/<run_id>/
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
-REPORTS_DIR = REPO_ROOT / "reports"
+REPO_REPORTS_DIR = REPO_ROOT / "reports"
+USER_LOGS_DIR = Path.home() / ".tradingagents" / "logs"
+USER_WEB_RUNS_DIR = Path.home() / ".tradingagents" / "web" / "runs"
 OUT_DIR = HERE / "data"
 
-# Map (subdir, filename-stem) -> (agent_key, team, label, report_key)
-# - agent_key matches the `key` field in web/frontend/src/types.ts ALL_AGENTS
-# - team is one of: analysts, research, trading, risk
-# - report_key matches the canonical state slot in the running web UI
-AGENT_FILES: list[tuple[str, str, str, str, str, str]] = [
-    # (subdir,        filename,           agent_key,      team,       label,                 report_key)
-    ("1_analysts",    "market.md",        "market",       "analysts", "Market Analyst",      "market_report"),
-    ("1_analysts",    "sentiment.md",     "social",       "analysts", "Social Analyst",      "sentiment_report"),
-    ("1_analysts",    "news.md",          "news",         "analysts", "News Analyst",        "news_report"),
-    ("1_analysts",    "fundamentals.md",  "fundamentals", "analysts", "Fundamentals Analyst","fundamentals_report"),
-    ("2_research",    "bull.md",          "bull",         "research", "Bull Researcher",     "bull_history"),
-    ("2_research",    "bear.md",          "bear",         "research", "Bear Researcher",     "bear_history"),
-    ("2_research",    "manager.md",       "research_mgr", "research", "Research Manager",    "investment_plan"),
-    ("3_trading",     "trader.md",        "trader",       "trading",  "Trader",              "trader_investment_plan"),
-    ("4_risk",        "aggressive.md",    "aggressive",   "risk",     "Aggressive Analyst",  "risk__aggressive_history"),
-    ("4_risk",        "conservative.md",  "conservative", "risk",     "Conservative Analyst","risk__conservative_history"),
-    ("4_risk",        "neutral.md",       "neutral",      "risk",     "Neutral Analyst",     "risk__neutral_history"),
-    ("5_portfolio",   "decision.md",      "portfolio_mgr","risk",     "Portfolio Manager",   "final_trade_decision"),
+# Canonical agent metadata. Each entry: (agent_key, team, label, report_key).
+# - agent_key matches the `key` field in web/frontend/src/types.ts ALL_AGENTS.
+# - report_key matches the canonical state slot in the live web backend.
+AGENT_INFO: dict[str, tuple[str, str, str]] = {
+    # agent_key:       (team,       label,                     report_key)
+    "market":         ("analysts", "Market Analyst",          "market_report"),
+    "social":         ("analysts", "Social Analyst",          "sentiment_report"),
+    "news":           ("analysts", "News Analyst",            "news_report"),
+    "fundamentals":   ("analysts", "Fundamentals Analyst",    "fundamentals_report"),
+    "bull":           ("research", "Bull Researcher",         "bull_history"),
+    "bear":           ("research", "Bear Researcher",         "bear_history"),
+    "research_mgr":   ("research", "Research Manager",        "investment_plan"),
+    "trader":         ("trading",  "Trader",                  "trader_investment_plan"),
+    "aggressive":     ("risk",     "Aggressive Analyst",      "risk__aggressive_history"),
+    "conservative":   ("risk",     "Conservative Analyst",    "risk__conservative_history"),
+    "neutral":        ("risk",     "Neutral Analyst",         "risk__neutral_history"),
+    "portfolio_mgr":  ("risk",     "Portfolio Manager",       "final_trade_decision"),
+}
+
+# Source 1: repo `reports/<ID>/<subdir>/<filename>` -> agent_key
+REPO_FILES: list[tuple[str, str, str]] = [
+    # (subdir,       filename,           agent_key)
+    ("1_analysts",   "market.md",        "market"),
+    ("1_analysts",   "sentiment.md",     "social"),
+    ("1_analysts",   "news.md",          "news"),
+    ("1_analysts",   "fundamentals.md",  "fundamentals"),
+    ("2_research",   "bull.md",          "bull"),
+    ("2_research",   "bear.md",          "bear"),
+    ("2_research",   "manager.md",       "research_mgr"),
+    ("3_trading",    "trader.md",        "trader"),
+    ("4_risk",       "aggressive.md",    "aggressive"),
+    ("4_risk",       "conservative.md",  "conservative"),
+    ("4_risk",       "neutral.md",       "neutral"),
+    ("5_portfolio",  "decision.md",      "portfolio_mgr"),
+]
+
+# Source 2: logs/<TICKER>/<DATE>/reports/<filename> -> agent_key
+# Both `research_manager.md` and `investment_plan.md` appear; they're identical,
+# so we list both forms with a fallback chain (first hit wins).
+LOG_FILE_CANDIDATES: list[tuple[list[str], str]] = [
+    # (filename candidates,                     agent_key)
+    (["market_report.md", "market_analyst.md"],         "market"),
+    (["sentiment_report.md", "social_analyst.md"],      "social"),
+    (["news_report.md", "news_analyst.md"],             "news"),
+    (["fundamentals_report.md", "fundamentals_analyst.md"], "fundamentals"),
+    (["bull_researcher.md"],                            "bull"),
+    (["bear_researcher.md"],                            "bear"),
+    (["research_manager.md", "investment_plan.md"],     "research_mgr"),
+    (["trader_investment_plan.md", "trader.md"],        "trader"),
+    (["aggressive_analyst.md"],                         "aggressive"),
+    (["conservative_analyst.md"],                       "conservative"),
+    (["neutral_analyst.md"],                            "neutral"),
+    (["final_trade_decision.md", "portfolio_manager.md"], "portfolio_mgr"),
 ]
 
 RUN_ID_RE = re.compile(r"^(?P<ticker>[A-Z0-9.\-]+)_(?P<date>\d{8})_(?P<time>\d{6})$")
-RATING_RE = re.compile(r"\b(BUY|SELL|HOLD)\b", re.IGNORECASE)
+DATE_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 @dataclass
 class Report:
     key: str          # report_key (canonical state slot)
-    agent_key: str    # for sidebar mapping
+    agent_key: str
     team: str
     label: str
     content: str
@@ -67,17 +116,23 @@ class Run:
     trade_date: str          # YYYY-MM-DD
     created_at: float        # unix timestamp
     created_at_iso: str
-    decision: str | None             # full text of portfolio decision (or final summary)
+    source: str              # "repo" | "logs" | "web"
+    decision: str | None             # text of portfolio manager's decision
     rating: str | None               # "buy" | "sell" | "hold" | null
     research_decision: str | None
     trader_decision: str | None
     portfolio_decision: str | None
+    llm_provider: str | None = None
+    deep_think_llm: str | None = None
     reports: list[Report] = field(default_factory=list)
     complete_report: str | None = None
 
 
+# ---------- helpers ---------------------------------------------------------
+
+
 def parse_rating(text: str | None) -> str | None:
-    """Return 'buy' | 'sell' | 'hold' | None. BUY wins ties (mirrors web UI)."""
+    """Return 'buy' | 'sell' | 'hold' | None. BUY wins ties (matches web UI)."""
     if not text:
         return None
     upper = text.upper()
@@ -90,9 +145,64 @@ def parse_rating(text: str | None) -> str | None:
     return None
 
 
-def parse_run_id(run_id: str) -> tuple[str, str, float, str] | None:
-    """Decompose `TICKER_YYYYMMDD_HHMMSS` -> (ticker, trade_date, ts, iso)."""
-    m = RUN_ID_RE.match(run_id)
+def load_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (FileNotFoundError, OSError):
+        return None
+
+
+def build_report(agent_key: str, content: str) -> Report:
+    team, label, report_key = AGENT_INFO[agent_key]
+    return Report(key=report_key, agent_key=agent_key, team=team, label=label, content=content)
+
+
+def synthesize_complete_report(ticker: str, trade_date: str, reports: list[Report]) -> str:
+    """Build a `complete_report.md`-style document by concatenating sections."""
+    by_team = {"analysts": [], "research": [], "trading": [], "risk": []}
+    for rep in reports:
+        by_team.get(rep.team, []).append(rep)
+    sections = [
+        f"# Trading Analysis Report: {ticker}",
+        f"\nTrade Date: {trade_date}\n",
+    ]
+    team_titles = [
+        ("analysts", "I. Analyst Team Reports"),
+        ("research", "II. Research Team"),
+        ("trading",  "III. Trading Team"),
+        ("risk",     "IV. Risk Management & Portfolio Decision"),
+    ]
+    for team_key, heading in team_titles:
+        if not by_team[team_key]:
+            continue
+        sections.append(f"\n## {heading}\n")
+        for rep in by_team[team_key]:
+            sections.append(f"\n### {rep.label}\n\n{rep.content.strip()}\n")
+    return "\n".join(sections)
+
+
+def finalize_run(run: Run) -> Run:
+    """Fill in rating/decision fields from the run's collected reports."""
+    by_key = {r.key: r for r in run.reports}
+    research_text = (by_key.get("investment_plan") or Report("", "", "", "", "")).content
+    trader_text   = (by_key.get("trader_investment_plan") or Report("", "", "", "", "")).content
+    portfolio_text = (by_key.get("final_trade_decision") or Report("", "", "", "", "")).content
+
+    run.decision = portfolio_text or trader_text or None
+    run.rating = parse_rating(run.decision)
+    run.research_decision = parse_rating(research_text)
+    run.trader_decision = parse_rating(trader_text)
+    run.portfolio_decision = parse_rating(portfolio_text)
+    if run.complete_report is None and run.reports:
+        run.complete_report = synthesize_complete_report(run.ticker, run.trade_date, run.reports)
+    return run
+
+
+# ---------- source 1: repo reports/ -----------------------------------------
+
+
+def scan_repo_run(run_dir: Path) -> Run | None:
+    m = RUN_ID_RE.match(run_dir.name)
     if not m:
         return None
     ticker = m.group("ticker")
@@ -103,111 +213,238 @@ def parse_run_id(run_id: str) -> tuple[str, str, float, str] | None:
     except ValueError:
         return None
     trade_date = f"{date[0:4]}-{date[4:6]}-{date[6:8]}"
-    return ticker, trade_date, dt.timestamp(), dt.isoformat()
-
-
-def load_text(path: Path) -> str | None:
-    try:
-        return path.read_text(encoding="utf-8")
-    except (FileNotFoundError, OSError):
-        return None
-
-
-def scan_run(run_dir: Path) -> Run | None:
-    parsed = parse_run_id(run_dir.name)
-    if parsed is None:
-        return None
-    ticker, trade_date, ts, iso = parsed
 
     reports: list[Report] = []
-    research_text: str | None = None
-    trader_text: str | None = None
-    portfolio_text: str | None = None
-
-    for subdir, fname, agent_key, team, label, report_key in AGENT_FILES:
-        fpath = run_dir / subdir / fname
-        body = load_text(fpath)
+    for subdir, fname, agent_key in REPO_FILES:
+        body = load_text(run_dir / subdir / fname)
         if body is None:
             continue
-        reports.append(Report(
-            key=report_key,
-            agent_key=agent_key,
-            team=team,
-            label=label,
-            content=body,
-        ))
-        if report_key == "investment_plan":
-            research_text = body
-        elif report_key == "trader_investment_plan":
-            trader_text = body
-        elif report_key == "final_trade_decision":
-            portfolio_text = body
+        reports.append(build_report(agent_key, body))
 
-    complete_report = load_text(run_dir / "complete_report.md")
-
-    # Final decision: prefer the portfolio manager's text, fall back to trader.
-    decision_text = portfolio_text or trader_text
-    rating = parse_rating(decision_text)
-
-    return Run(
+    run = Run(
         id=run_dir.name,
         ticker=ticker,
         trade_date=trade_date,
-        created_at=ts,
-        created_at_iso=iso,
-        decision=decision_text,
-        rating=rating,
-        research_decision=parse_rating(research_text),
-        trader_decision=parse_rating(trader_text),
-        portfolio_decision=parse_rating(portfolio_text),
+        created_at=dt.timestamp(),
+        created_at_iso=dt.isoformat(),
+        source="repo",
+        decision=None, rating=None,
+        research_decision=None, trader_decision=None, portfolio_decision=None,
         reports=reports,
-        complete_report=complete_report,
+        complete_report=load_text(run_dir / "complete_report.md"),
     )
+    return finalize_run(run)
+
+
+# ---------- source 2: ~/.tradingagents/logs/<TICKER>/<DATE>/reports ---------
+
+
+def scan_logs_run(ticker: str, date_dir: Path) -> Run | None:
+    if not DATE_DIR_RE.match(date_dir.name):
+        return None
+    reports_dir = date_dir / "reports"
+    if not reports_dir.is_dir():
+        return None
+    trade_date = date_dir.name
+
+    reports: list[Report] = []
+    for candidates, agent_key in LOG_FILE_CANDIDATES:
+        body: str | None = None
+        for fname in candidates:
+            body = load_text(reports_dir / fname)
+            if body is not None:
+                break
+        if body is None:
+            continue
+        reports.append(build_report(agent_key, body))
+    if not reports:
+        return None
+
+    # Use directory mtime as a proxy for created_at (no metadata file here).
+    try:
+        ts = reports_dir.stat().st_mtime
+    except OSError:
+        ts = datetime.strptime(trade_date, "%Y-%m-%d").timestamp()
+    dt = datetime.fromtimestamp(ts)
+
+    run = Run(
+        id=f"{ticker}_{trade_date.replace('-', '')}_logs",
+        ticker=ticker,
+        trade_date=trade_date,
+        created_at=ts,
+        created_at_iso=dt.isoformat(),
+        source="logs",
+        decision=None, rating=None,
+        research_decision=None, trader_decision=None, portfolio_decision=None,
+        reports=reports,
+        complete_report=None,
+    )
+    return finalize_run(run)
+
+
+# ---------- source 3: ~/.tradingagents/web/runs/<id> ------------------------
+
+# Map report_key (canonical state slot) -> agent_key
+REPORT_KEY_TO_AGENT: dict[str, str] = {
+    info[2]: agent_key for agent_key, info in AGENT_INFO.items()
+}
+
+
+def scan_web_run(run_dir: Path) -> Run | None:
+    meta_path = run_dir / "run.json"
+    events_path = run_dir / "events.jsonl"
+    if not meta_path.is_file() or not events_path.is_file():
+        return None
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if meta.get("status") != "completed":
+        return None
+
+    ticker = meta.get("ticker")
+    trade_date = meta.get("trade_date")
+    if not ticker or not trade_date:
+        return None
+
+    # Walk events.jsonl and capture the *last* report per report_key.
+    latest_report: dict[str, str] = {}
+    with events_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if e.get("type") == "report":
+                key = e.get("report_key")
+                body = e.get("report")
+                if key and body:
+                    latest_report[key] = body
+
+    reports: list[Report] = []
+    for report_key, body in latest_report.items():
+        agent_key = REPORT_KEY_TO_AGENT.get(report_key)
+        if not agent_key:
+            continue
+        reports.append(build_report(agent_key, body))
+    if not reports:
+        return None
+
+    created_at = float(meta.get("created_at") or 0) or run_dir.stat().st_mtime
+    dt = datetime.fromtimestamp(created_at)
+
+    # Prefer the actual ratings the web backend persisted in run.json.
+    decision_text = (
+        latest_report.get("final_trade_decision")
+        or latest_report.get("trader_investment_plan")
+    )
+    run = Run(
+        id=f"{ticker}_{trade_date.replace('-', '')}_web_{run_dir.name[:8]}",
+        ticker=ticker,
+        trade_date=trade_date,
+        created_at=created_at,
+        created_at_iso=dt.isoformat(),
+        source="web",
+        decision=decision_text,
+        rating=parse_rating(meta.get("decision")) or parse_rating(decision_text),
+        research_decision=meta.get("research_decision") or parse_rating(latest_report.get("investment_plan")),
+        trader_decision=meta.get("trader_decision") or parse_rating(latest_report.get("trader_investment_plan")),
+        portfolio_decision=meta.get("portfolio_decision") or parse_rating(latest_report.get("final_trade_decision")),
+        llm_provider=(meta.get("config") or {}).get("llm_provider"),
+        deep_think_llm=(meta.get("config") or {}).get("deep_think_llm"),
+        reports=reports,
+        complete_report=synthesize_complete_report(ticker, trade_date, reports),
+    )
+    # finalize_run would overwrite the values from meta — only call it if we
+    # need to fill in missing fields.
+    if run.decision and run.complete_report:
+        return run
+    return finalize_run(run)
+
+
+# ---------- aggregator ------------------------------------------------------
+
+
+def collect() -> list[Run]:
+    candidates: list[Run] = []
+
+    if REPO_REPORTS_DIR.is_dir():
+        for child in sorted(REPO_REPORTS_DIR.iterdir()):
+            if child.is_dir():
+                run = scan_repo_run(child)
+                if run is not None:
+                    candidates.append(run)
+
+    if USER_LOGS_DIR.is_dir():
+        for ticker_dir in sorted(USER_LOGS_DIR.iterdir()):
+            if not ticker_dir.is_dir():
+                continue
+            ticker = ticker_dir.name
+            for date_dir in sorted(ticker_dir.iterdir()):
+                if not date_dir.is_dir():
+                    continue
+                run = scan_logs_run(ticker, date_dir)
+                if run is not None:
+                    candidates.append(run)
+
+    if USER_WEB_RUNS_DIR.is_dir():
+        for run_dir in sorted(USER_WEB_RUNS_DIR.iterdir()):
+            if not run_dir.is_dir():
+                continue
+            run = scan_web_run(run_dir)
+            if run is not None:
+                candidates.append(run)
+
+    # Dedup by (ticker, trade_date). Preference order: repo > logs > web,
+    # broken by report count. The intent: when the same run has been promoted
+    # to reports/, prefer that polished copy; otherwise take whichever source
+    # has the most content.
+    priority = {"repo": 3, "logs": 2, "web": 1}
+    grouped: dict[tuple[str, str], Run] = {}
+    for run in candidates:
+        key = (run.ticker, run.trade_date)
+        existing = grouped.get(key)
+        if existing is None:
+            grouped[key] = run
+            continue
+        if (priority[run.source], len(run.reports)) > (priority[existing.source], len(existing.reports)):
+            grouped[key] = run
+
+    runs = list(grouped.values())
+    runs.sort(key=lambda r: r.created_at, reverse=True)
+    return runs
 
 
 def serialize_run_summary(run: Run) -> dict:
-    """Trimmed view used in the home-page manifest (no report bodies)."""
     return {
         "id": run.id,
         "ticker": run.ticker,
         "trade_date": run.trade_date,
         "created_at": run.created_at,
         "created_at_iso": run.created_at_iso,
+        "source": run.source,
         "rating": run.rating,
-        "decision_preview": (run.decision or "").strip().split("\n", 1)[0][:240] or None,
         "research_decision": run.research_decision,
         "trader_decision": run.trader_decision,
         "portfolio_decision": run.portfolio_decision,
         "report_count": len(run.reports),
+        "llm_provider": run.llm_provider,
+        "deep_think_llm": run.deep_think_llm,
     }
 
 
-def serialize_run_detail(run: Run) -> dict:
-    d = asdict(run)
-    return d
-
-
 def main() -> int:
-    if not REPORTS_DIR.is_dir():
-        print(f"error: reports directory not found at {REPORTS_DIR}", file=sys.stderr)
-        return 1
-
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     (OUT_DIR / "runs").mkdir(parents=True)
 
-    runs: list[Run] = []
-    for child in sorted(REPORTS_DIR.iterdir()):
-        if not child.is_dir():
-            continue
-        run = scan_run(child)
-        if run is None:
-            print(f"skip: {child.name} (unrecognized layout)", file=sys.stderr)
-            continue
-        runs.append(run)
-
-    # Newest first — matches the web UI's ordering.
-    runs.sort(key=lambda r: r.created_at, reverse=True)
+    runs = collect()
+    if not runs:
+        print("warn: no runs found in reports/, ~/.tradingagents/logs, or ~/.tradingagents/web/runs",
+              file=sys.stderr)
 
     manifest = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
@@ -221,11 +458,15 @@ def main() -> int:
     for run in runs:
         out_path = OUT_DIR / "runs" / f"{run.id}.json"
         out_path.write_text(
-            json.dumps(serialize_run_detail(run), indent=2, ensure_ascii=False),
+            json.dumps(asdict(run), indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
 
-    print(f"wrote {len(runs)} run(s) -> {OUT_DIR.relative_to(REPO_ROOT)}/")
+    by_source: dict[str, int] = {}
+    for r in runs:
+        by_source[r.source] = by_source.get(r.source, 0) + 1
+    summary = ", ".join(f"{k}={v}" for k, v in sorted(by_source.items()))
+    print(f"wrote {len(runs)} run(s) ({summary}) -> {OUT_DIR.relative_to(REPO_ROOT)}/")
     return 0
 
 

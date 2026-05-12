@@ -277,13 +277,11 @@ function buildRunCard(r) {
     el("a", { className: "run-card", href: `#/runs/${encodeURIComponent(r.id)}` },
       el("div", { className: "row" },
         el("span", { className: "ticker" }, r.ticker),
-        el("span", { className: "row", style: { gap: "6px" } },
-          finalRating ? el("span", { className: `rating-pill ${finalRating}` }, finalRating.toUpperCase()) : null,
-          el("span", { className: "badge completed" }, "archived"),
-        ),
+        finalRating ? el("span", { className: `rating-pill ${finalRating}` }, finalRating.toUpperCase()) : null,
       ),
       el("div", { className: "row", style: { marginTop: "4px" } },
-        el("span", { className: "meta" }, `${r.trade_date} · ${r.report_count || 0} reports`),
+        el("span", { className: "meta" },
+          [r.trade_date, modelLine(r), `${r.report_count || 0} reports`].filter(Boolean).join(" · ")),
         el("span", { className: "meta" }, created),
       ),
       chainNode,
@@ -378,9 +376,11 @@ function buildRunView(run) {
     el("div", { className: "topline" },
       el("strong", null, run.ticker),
       el("span", { className: "meta" }, run.trade_date),
+      modelLine(run)
+        ? el("span", { className: "meta" }, modelLine(run))
+        : null,
       el("span", { className: "meta" },
         `${(run.reports || []).length} reports`),
-      el("span", { className: "badge completed" }, "archived"),
       el("div", { style: { flex: 1 } }),
     ),
     viewerBody,
@@ -450,8 +450,9 @@ function buildRightPanel(run, reportsByAgent, onPick) {
         el("div", { className: "label" }, "FINAL DECISION"),
         el("div", { className: "rating-line" },
           rating ? el("span", { className: `rating-pill ${rating}` }, rating.toUpperCase()) : null,
-          el("span", { className: "decision-text" }, oneLine(run.decision)),
-        ))
+        ),
+        renderMarkdownInto(el("div", { className: "md decision-md" }), run.decision),
+      )
     : null;
 
   const list = el("div", null);
@@ -486,8 +487,8 @@ function renderMarkdownInto(node, md) {
   return node;
 }
 
-function oneLine(text) {
-  if (!text) return "";
-  const stripped = text.replace(/\s+/g, " ").trim();
-  return stripped.length > 240 ? stripped.slice(0, 237) + "…" : stripped;
+function modelLine(r) {
+  if (!r.llm_provider && !r.deep_think_llm) return "";
+  return [r.llm_provider, r.deep_think_llm].filter(Boolean).join("/");
 }
+

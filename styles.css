@@ -334,6 +334,9 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
   margin-top: 6px;
 }
 .decision-banner .decision-text { font-size: 14px; overflow-wrap: anywhere; }
+.decision-banner .decision-md { margin-top: 10px; font-size: 13px; }
+.decision-banner .decision-md > :first-child { margin-top: 0; }
+.decision-banner .decision-md > :last-child { margin-bottom: 0; }
 .decision-banner.buy  { background: linear-gradient(90deg, #0e3a1f, #0c2d4a); border-color: var(--green); }
 .decision-banner.sell { background: linear-gradient(90deg, #3a0e10, #2d0c1d); border-color: var(--red); }
 .decision-banner.hold { background: linear-gradient(90deg, #4a3c00, #2d2a1d); border-color: var(--yellow); }
