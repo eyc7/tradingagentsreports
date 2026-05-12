@@ -348,9 +348,25 @@ function buildRunView(run) {
     }, el("span", { className: "dot" }), el("span", null, "Complete Report")));
   }
 
+  // The FINAL DECISION banner lives at the top of the viewer (above the
+  // selected report). Built once per run since its contents don't depend
+  // on the sidebar selection.
+  const rating = ratingOf(run.decision) || run.rating || null;
+  const decisionBanner = run.decision
+    ? el("div", { className: `decision-banner ${rating || ""}` },
+        el("div", { className: "label" }, "FINAL DECISION"),
+        el("div", { className: "rating-line" },
+          rating ? el("span", { className: `rating-pill ${rating}` }, rating.toUpperCase()) : null,
+        ),
+        renderMarkdownInto(el("div", { className: "md decision-md" }), run.decision),
+      )
+    : null;
+
   const viewerBody = el("div", { className: "body" });
   function renderViewer() {
     viewerBody.replaceChildren();
+    if (decisionBanner) viewerBody.append(decisionBanner);
+
     if (selectedAgent) {
       const rep = reportsByAgent[selectedAgent];
       if (!rep) {
@@ -386,94 +402,9 @@ function buildRunView(run) {
     viewerBody,
   );
 
-  // Right-side panel: decision banner + list of all report cards.
-  const right = buildRightPanel(run, reportsByAgent, (agentKey) => {
-    selectedAgent = agentKey;
-    renderSidebar();
-    renderViewer();
-    // Reset the internal scroll on desktop, then scroll the viewer back
-    // into view (matters on mobile where the right panel sits below).
-    document.querySelector(".viewer .body")?.scrollTo({ top: 0, behavior: "smooth" });
-    document.querySelector(".viewer")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-
-  // Resizer between viewer and right panel.
-  const STORAGE_KEY = "ta:rightPanelWidth";
-  const MIN_RIGHT = 280;
-  const SIDEBAR_WIDTH = 240;
-  const RESIZER_WIDTH = 4;
-  function maxRightWidth() {
-    return Math.max(MIN_RIGHT, window.innerWidth - SIDEBAR_WIDTH - RESIZER_WIDTH - 240);
-  }
-  function defaultRight() {
-    const remaining = window.innerWidth - SIDEBAR_WIDTH - RESIZER_WIDTH;
-    return Math.max(MIN_RIGHT, Math.floor(remaining / 2));
-  }
-  let rightWidth;
-  const stored = parseInt(localStorage.getItem(STORAGE_KEY) || "", 10);
-  rightWidth = Number.isFinite(stored) && stored >= MIN_RIGHT && stored <= maxRightWidth()
-    ? stored : defaultRight();
-
-  const page = el("div", { className: "run-page" }, sidebar, viewer);
-  const resizer = el("div", { className: "resizer" });
-  page.append(resizer, right);
-  page.style.gridTemplateColumns = `${SIDEBAR_WIDTH}px 1fr ${RESIZER_WIDTH}px ${rightWidth}px`;
-
-  let dragging = false;
-  let lastX = 0;
-  resizer.addEventListener("mousedown", (e) => {
-    dragging = true;
-    lastX = e.clientX;
-    document.body.style.userSelect = "none";
-    e.preventDefault();
-  });
-  window.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-    const dx = e.clientX - lastX;
-    lastX = e.clientX;
-    rightWidth = Math.max(MIN_RIGHT, Math.min(maxRightWidth(), rightWidth - dx));
-    page.style.gridTemplateColumns = `${SIDEBAR_WIDTH}px 1fr ${RESIZER_WIDTH}px ${rightWidth}px`;
-  });
-  window.addEventListener("mouseup", () => {
-    if (!dragging) return;
-    dragging = false;
-    document.body.style.userSelect = "";
-    localStorage.setItem(STORAGE_KEY, String(rightWidth));
-  });
-
   renderSidebar();
   renderViewer();
-  return page;
-}
-
-function buildRightPanel(run, reportsByAgent, onPick) {
-  const rating = ratingOf(run.decision) || run.rating || null;
-  const decisionBanner = run.decision
-    ? el("div", { className: `decision-banner ${rating || ""}` },
-        el("div", { className: "label" }, "FINAL DECISION"),
-        el("div", { className: "rating-line" },
-          rating ? el("span", { className: `rating-pill ${rating}` }, rating.toUpperCase()) : null,
-        ),
-        renderMarkdownInto(el("div", { className: "md decision-md" }), run.decision),
-      )
-    : null;
-
-  const list = el("div", null);
-  for (const rep of run.reports || []) {
-    const card = buildReportCard(rep);
-    card.style.cursor = "pointer";
-    card.title = "Show only this report on the left";
-    card.addEventListener("click", () => onPick(rep.agent_key));
-    list.append(card);
-  }
-  if (!(run.reports || []).length) {
-    list.append(el("div", { className: "empty-state" }, "No reports."));
-  }
-
-  return el("aside", { className: "tool-panel" },
-    el("div", { className: "tabs" }, el("button", { className: "active" }, `Reports (${(run.reports || []).length})`)),
-    el("div", { className: "body" }, decisionBanner, list),
-  );
+  return el("div", { className: "run-page" }, sidebar, viewer);
 }
 
 function buildReportCard(rep) {
