@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-05-12T21:54:44.695249Z",
+  "runs": [
+    {
+      "id": "MRVL_20260508_170355",
+      "ticker": "MRVL",
+      "trade_date": "2026-05-08",
+      "created_at": 1778285035.0,
+      "created_at_iso": "2026-05-08T17:03:55",
+      "rating": "buy",
+      "decision_preview": "**Rating**: Buy",
+      "research_decision": "buy",
+      "trader_decision": "buy",
+      "portfolio_decision": "buy",
+      "report_count": 12
+    }
+  ]
+}
