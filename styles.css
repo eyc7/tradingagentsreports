@@ -412,9 +412,9 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
     max-width: 370px;
     margin: 0 auto;
   }
-  .report-card { padding: 10px; border-radius: 6px; }
+  .report-card { padding: 10px; border-radius: 6px; max-width: 370px; }
   .report-card h4 { font-size: 12px; margin-bottom: 6px; }
-  .decision-banner { padding: 10px 12px; }
+  .decision-banner { padding: 10px 12px; max-width: 370px; }
 
   /* Sticky topbar needs a bigger scroll-margin so jumps don't hide under it. */
   .decision-banner, .report-card { scroll-margin-top: 56px; }
