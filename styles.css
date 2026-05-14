@@ -154,6 +154,35 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
 .runs-filter button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px; font-size: 14px; cursor: pointer; }
 .runs-filter button.secondary:hover { background: var(--bg-2); }
 
+.upstream-citation {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.upstream-citation-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.upstream-citation p { margin: 0 0 8px; }
+.upstream-citation .bibtex {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .run-group { margin-bottom: 14px; }
 .run-group-header {
   display: flex;
@@ -514,6 +543,19 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
   border-top: 1px dashed var(--bg-3);
 }
 .sub-indicator-label { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+
+.sankey-wrap {
+  margin-bottom: 12px;
+  padding: 6px 0 8px;
+  border-bottom: 1px dashed var(--bg-3);
+}
+.sankey-period {
+  font-size: 10.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
 
 .fin-grid {
   display: grid;

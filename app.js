@@ -320,12 +320,32 @@ function buildHomeView(manifest) {
         runs[0] && manifest.generated_at
           ? ` · last built ${new Date(manifest.generated_at).toLocaleString()}`
           : ""),
+      buildUpstreamCitation(),
     ),
     el("section", { className: "runs" },
       el("h2", null, "Recent runs"),
       el("div", { className: "runs-filter" },
         tickerInput, categorySelect, fromInput, toInput, groupSelect, clearBtn),
       runListEl),
+  );
+}
+
+/** Credit to the upstream TradingAgents paper / project. Goes at the
+    bottom of the intro panel on the home page. */
+function buildUpstreamCitation() {
+  return el("div", { className: "upstream-citation" },
+    el("div", { className: "upstream-citation-head" }, "Based on"),
+    el("p", null,
+      el("a", { href: "https://tradingagents-ai.github.io/", target: "_blank", rel: "noreferrer" },
+        "TradingAgents: Multi-Agents LLM Financial Trading Framework"),
+    ),
+    el("pre", { className: "bibtex" },
+      "@article{xiao2024tradingagents,\n" +
+      "  title={TradingAgents: Multi-Agents LLM Financial Trading Framework},\n" +
+      "  author={Xiao, Yijia and Sun, Edward and Luo, Di and Wang, Wei},\n" +
+      "  journal={arXiv preprint arXiv:2412.20138},\n" +
+      "  year={2024}\n" +
+      "}"),
   );
 }
 

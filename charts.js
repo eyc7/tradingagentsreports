@@ -565,6 +565,171 @@ function deltaClass(p) {
   return "delta neutral";
 }
 
+// ---------------- Sankey (financial-statement flow snapshot) ----------------
+
+const SANKEY_COLOR_IN  = "#3fb950";
+const SANKEY_COLOR_OUT = "#f85149";
+const SANKEY_COLOR_MID = "#58a6ff";
+const SANKEY_COLOR_END = "#bc8cff";
+
+function softFill(hex, alpha) {
+  const a = alpha == null ? 0.35 : alpha;
+  const m = String(hex).match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+  if (!m) return hex;
+  return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`;
+}
+
+function latestValueOf(stmt, aliases, fx) {
+  const row = pickRow(stmt.rows, aliases);
+  if (!row) return null;
+  const raw = row.values[row.values.length - 1];
+  if (raw == null) return null;
+  return fx ? toUsd(raw, fx) : raw;
+}
+
+function buildIncomeSankey(stmt, fx) {
+  const revenue = latestValueOf(stmt, ["Total Revenue", "Operating Revenue", "Revenue"], fx);
+  const gp      = latestValueOf(stmt, ["Gross Profit"], fx);
+  const oi      = latestValueOf(stmt, ["Operating Income", "Total Operating Income As Reported"], fx);
+  const ni      = latestValueOf(stmt, ["Net Income", "Net Income Common Stockholders", "Net Income Continuous Operations"], fx);
+  if (revenue == null || gp == null) return null;
+  const cogs = revenue - gp;
+  const opEx = oi != null ? gp - oi : null;
+  const taxOther = (oi != null && ni != null) ? oi - ni : null;
+  const nodes = [
+    { label: "Revenue",         color: SANKEY_COLOR_IN  },
+    { label: "Cost of Revenue", color: SANKEY_COLOR_OUT },
+    { label: "Gross Profit",    color: SANKEY_COLOR_MID },
+  ];
+  const links = [
+    { source: 0, target: 1, value: Math.max(0, cogs), color: softFill(SANKEY_COLOR_OUT) },
+    { source: 0, target: 2, value: Math.max(0, gp),   color: softFill(SANKEY_COLOR_IN)  },
+  ];
+  if (oi != null && opEx != null) {
+    nodes.push({ label: "Operating Expenses", color: SANKEY_COLOR_OUT });
+    nodes.push({ label: "Operating Income",   color: SANKEY_COLOR_MID });
+    links.push({ source: 2, target: 3, value: Math.max(0, opEx), color: softFill(SANKEY_COLOR_OUT) });
+    links.push({ source: 2, target: 4, value: Math.max(0, oi),   color: softFill(SANKEY_COLOR_MID) });
+    if (ni != null && taxOther != null) {
+      nodes.push({ label: "Tax & Interest", color: SANKEY_COLOR_OUT });
+      nodes.push({ label: "Net Income",     color: SANKEY_COLOR_END });
+      links.push({ source: 4, target: 5, value: Math.max(0, taxOther), color: softFill(SANKEY_COLOR_OUT) });
+      links.push({ source: 4, target: 6, value: Math.max(0, ni),       color: softFill(SANKEY_COLOR_END) });
+    }
+  }
+  return { nodes, links };
+}
+
+function buildBalanceSankey(stmt, fx) {
+  const assets    = latestValueOf(stmt, ["Total Assets"], fx);
+  const liab      = latestValueOf(stmt, ["Total Liabilities Net Minority Interest", "Total Liabilities"], fx);
+  const equity    = latestValueOf(stmt, ["Stockholders Equity", "Total Equity Gross Minority Interest", "Common Stock Equity"], fx);
+  if (assets == null || (liab == null && equity == null)) return null;
+  const debt      = latestValueOf(stmt, ["Total Debt", "Net Debt"], fx);
+  const cash      = latestValueOf(stmt, ["Cash Cash Equivalents And Short Term Investments", "Cash And Cash Equivalents"], fx);
+  const inventory = latestValueOf(stmt, ["Inventory"], fx);
+  const liabilities = liab != null ? liab : (equity != null ? assets - equity : 0);
+  const otherLiab = (debt != null) ? Math.max(0, liabilities - debt) : null;
+  const otherAssets = assets - (cash || 0) - (inventory || 0);
+
+  const nodes = [];
+  const links = [];
+  const idx = {};
+  function add(label, color) { idx[label] = nodes.length; nodes.push({ label, color }); return nodes.length - 1; }
+
+  if (debt != null && debt > 0) add("Total Debt", SANKEY_COLOR_OUT);
+  if (otherLiab != null && otherLiab > 0) add("Other Liabilities", SANKEY_COLOR_OUT);
+  else if (debt == null && liabilities > 0) add("Total Liabilities", SANKEY_COLOR_OUT);
+  if (equity != null && equity > 0) add("Stockholders' Equity", SANKEY_COLOR_IN);
+  const aIdx = add("Total Assets", SANKEY_COLOR_MID);
+  if (cash != null && cash > 0)           add("Cash & Equivalents", SANKEY_COLOR_END);
+  if (inventory != null && inventory > 0) add("Inventory",          SANKEY_COLOR_END);
+  if (otherAssets > 0)                    add("Other Assets",       SANKEY_COLOR_MID);
+
+  if (idx["Total Debt"] != null)         links.push({ source: idx["Total Debt"], target: aIdx, value: debt, color: softFill(SANKEY_COLOR_OUT) });
+  if (idx["Other Liabilities"] != null)  links.push({ source: idx["Other Liabilities"], target: aIdx, value: otherLiab, color: softFill(SANKEY_COLOR_OUT) });
+  if (idx["Total Liabilities"] != null)  links.push({ source: idx["Total Liabilities"], target: aIdx, value: liabilities, color: softFill(SANKEY_COLOR_OUT) });
+  if (idx["Stockholders' Equity"] != null) links.push({ source: idx["Stockholders' Equity"], target: aIdx, value: equity, color: softFill(SANKEY_COLOR_IN) });
+  if (idx["Cash & Equivalents"] != null) links.push({ source: aIdx, target: idx["Cash & Equivalents"], value: cash, color: softFill(SANKEY_COLOR_END) });
+  if (idx["Inventory"] != null)          links.push({ source: aIdx, target: idx["Inventory"],          value: inventory, color: softFill(SANKEY_COLOR_END) });
+  if (idx["Other Assets"] != null)       links.push({ source: aIdx, target: idx["Other Assets"],       value: otherAssets, color: softFill(SANKEY_COLOR_MID) });
+  if (links.length === 0) return null;
+  return { nodes, links };
+}
+
+function buildCashflowSankey(stmt, fx) {
+  const opCF      = latestValueOf(stmt, ["Operating Cash Flow", "Cash Flow From Continuing Operating Activities"], fx);
+  const fcf       = latestValueOf(stmt, ["Free Cash Flow"], fx);
+  let capex       = latestValueOf(stmt, ["Capital Expenditure"], fx);
+  let dividends   = latestValueOf(stmt, ["Cash Dividends Paid", "Common Stock Dividend Paid"], fx);
+  let buybacks    = latestValueOf(stmt, ["Repurchase Of Capital Stock"], fx);
+  if (opCF == null || fcf == null) return null;
+  if (capex     != null) capex     = Math.abs(capex);
+  if (dividends != null) dividends = Math.abs(dividends);
+  if (buybacks  != null) buybacks  = Math.abs(buybacks);
+  const capexEff = capex != null ? capex : Math.max(0, opCF - fcf);
+
+  const nodes = [
+    { label: "Operating Cash Flow", color: SANKEY_COLOR_IN  },
+    { label: "Capex",               color: SANKEY_COLOR_OUT },
+    { label: "Free Cash Flow",      color: SANKEY_COLOR_MID },
+  ];
+  const links = [
+    { source: 0, target: 1, value: Math.max(0, capexEff), color: softFill(SANKEY_COLOR_OUT) },
+    { source: 0, target: 2, value: Math.max(0, fcf),      color: softFill(SANKEY_COLOR_MID) },
+  ];
+  const distributed = (dividends || 0) + (buybacks || 0);
+  const retained = Math.max(0, fcf - distributed);
+  if (dividends && dividends > 0) {
+    nodes.push({ label: "Dividends", color: SANKEY_COLOR_OUT });
+    links.push({ source: 2, target: nodes.length - 1, value: dividends, color: softFill(SANKEY_COLOR_OUT) });
+  }
+  if (buybacks && buybacks > 0) {
+    nodes.push({ label: "Buybacks", color: SANKEY_COLOR_OUT });
+    links.push({ source: 2, target: nodes.length - 1, value: buybacks, color: softFill(SANKEY_COLOR_OUT) });
+  }
+  if (retained > 0) {
+    nodes.push({ label: "Retained / Other", color: SANKEY_COLOR_END });
+    links.push({ source: 2, target: nodes.length - 1, value: retained, color: softFill(SANKEY_COLOR_END) });
+  }
+  return { nodes, links };
+}
+
+function buildSankeyFor(stmt, fx) {
+  if (stmt.kind === "income")   return buildIncomeSankey(stmt, fx);
+  if (stmt.kind === "balance")  return buildBalanceSankey(stmt, fx);
+  if (stmt.kind === "cashflow") return buildCashflowSankey(stmt, fx);
+  return null;
+}
+
+function buildSankeyPlot(parent, data, period, fxNote) {
+  parent.append(el("div", { className: "sankey-period" },
+    `Snapshot: ${period}${fxNote ? `  ·  ${fxNote}` : ""}`));
+  const plot = el("div");
+  parent.append(plot);
+  setTimeout(() => {
+    newPlot(plot, [{
+      type: "sankey", orientation: "h", arrangement: "snap", valueformat: ",.3s",
+      node: {
+        label: data.nodes.map((n) => n.label),
+        color: data.nodes.map((n) => n.color),
+        pad: 18, thickness: 16,
+        line: { color: "#2d333b", width: 0.5 },
+      },
+      link: {
+        source: data.links.map((l) => l.source),
+        target: data.links.map((l) => l.target),
+        value:  data.links.map((l) => l.value),
+        color:  data.links.map((l) => l.color),
+      },
+      hovertemplate: "%{source.label} → %{target.label}<br>%{value:,.0f}<extra></extra>",
+    }], Object.assign({}, DARK_LAYOUT, {
+      height: 260,
+      margin: { l: 6, r: 6, t: 6, b: 6 },
+    }), { displayModeBar: false });
+  }, 0);
+}
+
 function buildFinancialStatementCard(container, stmt) {
   const metrics =
     stmt.kind === "income" ? INCOME_METRICS
@@ -574,6 +739,24 @@ function buildFinancialStatementCard(container, stmt) {
   const fx = reportingCurrency(stmt.ticker);
   const note = fx ? `  ·  Converted ${fx.code} → USD @ ${fx.rate.toFixed(2)} (${fx.asOf})` : "";
 
+  const card = el("div", { className: "chart-card" },
+    el("div", { className: "chart-card-head" },
+      el("h4", null,
+        `${KIND_TITLES[stmt.kind]} `,
+        el("span", { className: "muted" }, `— ${freqLabel}${stmt.ticker ? " · " + stmt.ticker : ""}${note}`),
+      ),
+    ),
+  );
+
+  // Sankey snapshot of the latest period (orthogonal to the time-series grid).
+  const sankey = buildSankeyFor(stmt, fx);
+  if (sankey) {
+    const wrap = el("div", { className: "sankey-wrap" });
+    const fxNote = fx ? `${fx.code} → USD @ ${fx.rate.toFixed(2)}` : "";
+    buildSankeyPlot(wrap, sankey, stmt.periods[stmt.periods.length - 1], fxNote);
+    card.append(wrap);
+  }
+
   const grid = el("div", { className: "fin-grid" });
   for (const m of metrics) {
     const row = pickRow(stmt.rows, m.aliases);
@@ -582,16 +765,8 @@ function buildFinancialStatementCard(container, stmt) {
     const values = isPerShare ? row.values : seriesToUsd(row.values, fx);
     grid.append(buildMetricCard(m.title, stmt.periods, values, stmt.freq));
   }
-
-  container.append(el("div", { className: "chart-card" },
-    el("div", { className: "chart-card-head" },
-      el("h4", null,
-        `${KIND_TITLES[stmt.kind]} `,
-        el("span", { className: "muted" }, `— ${freqLabel}${stmt.ticker ? " · " + stmt.ticker : ""}${note}`),
-      ),
-    ),
-    grid,
-  ));
+  card.append(grid);
+  container.append(card);
 }
 
 function buildMetricCard(title, periods, values, freq) {
