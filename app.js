@@ -250,13 +250,20 @@ function buildHomeView(manifest) {
 
   const categorySelect = el("select", { onchange: () => applyFilters() },
     el("option", { value: "" }, "All categories"),
-    ...CATEGORIES.map((c) => el("option", { value: c.name }, `${c.name} (${c.weight}%)`)),
+    ...CATEGORIES.map((c) => el("option", { value: c.name }, c.name)),
   );
 
   const fromInput = el("input", { type: "date", title: "From (created on or after)",
     onchange: () => applyFilters() });
   const toInput   = el("input", { type: "date", title: "To (created on or before)",
     onchange: () => applyFilters() });
+
+  const groupSelect = el("select", { onchange: () => applyFilters(),
+    title: "Group runs in the list" },
+    el("option", { value: "none" }, "Group: none"),
+    el("option", { value: "category" }, "Group: category"),
+    el("option", { value: "date" }, "Group: trade date"),
+  );
 
   const clearBtn = el("button", {
     type: "button", className: "secondary",
@@ -286,7 +293,19 @@ function buildHomeView(manifest) {
         anyFilter ? "No runs match the current filter." : "No runs found."));
       return;
     }
-    for (const r of filtered) runListEl.append(buildRunCard(r));
+    const mode = groupSelect.value;
+    if (mode === "none") {
+      for (const r of filtered) runListEl.append(buildRunCard(r));
+      return;
+    }
+    for (const group of groupRuns(filtered, mode)) {
+      const header = el("div", { className: "run-group-header" },
+        el("span", { className: "run-group-label" }, `${group.label} (${group.runs.length})`),
+      );
+      const wrap = el("div", { className: "run-group" }, header);
+      for (const r of group.runs) wrap.append(buildRunCard(r));
+      runListEl.append(wrap);
+    }
   }
   applyFilters();
 
@@ -305,9 +324,42 @@ function buildHomeView(manifest) {
     el("section", { className: "runs" },
       el("h2", null, "Recent runs"),
       el("div", { className: "runs-filter" },
-        tickerInput, categorySelect, fromInput, toInput, clearBtn),
+        tickerInput, categorySelect, fromInput, toInput, groupSelect, clearBtn),
       runListEl),
   );
+}
+
+/** Bucket the filtered runs by category or trade_date. Category groups
+    follow portfolio order; date groups sort newest-first. */
+function groupRuns(runs, mode) {
+  if (mode === "category") {
+    const CATEGORIES = (window.TAcategories && window.TAcategories.CATEGORIES) || [];
+    const categoryOf = (window.TAcategories && window.TAcategories.categoryOf) || (() => null);
+    const byCat = new Map();
+    for (const r of runs) {
+      const c = categoryOf(r.ticker) || "Uncategorized";
+      if (!byCat.has(c)) byCat.set(c, []);
+      byCat.get(c).push(r);
+    }
+    const out = [];
+    for (const cat of CATEGORIES) {
+      if (byCat.has(cat.name)) {
+        out.push({ key: cat.name, label: cat.name, runs: byCat.get(cat.name) });
+        byCat.delete(cat.name);
+      }
+    }
+    for (const [name, group] of byCat) out.push({ key: name, label: name, runs: group });
+    return out;
+  }
+  // mode === "date"
+  const byDate = new Map();
+  for (const r of runs) {
+    if (!byDate.has(r.trade_date)) byDate.set(r.trade_date, []);
+    byDate.get(r.trade_date).push(r);
+  }
+  return [...byDate.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([d, group]) => ({ key: d, label: d, runs: group }));
 }
 
 function buildRunCard(r) {

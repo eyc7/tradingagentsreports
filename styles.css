@@ -154,6 +154,22 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
 .runs-filter button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px; font-size: 14px; cursor: pointer; }
 .runs-filter button.secondary:hover { background: var(--bg-2); }
 
+.run-group { margin-bottom: 14px; }
+.run-group-header {
+  display: flex;
+  align-items: baseline;
+  padding: 8px 4px 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.run-group-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .decision-chain {
   display: flex;
   flex-wrap: wrap;
