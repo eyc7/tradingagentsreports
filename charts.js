@@ -702,14 +702,26 @@ function buildSankeyFor(stmt, fx) {
   return null;
 }
 
+function pickSankeyUnit(maxValue) {
+  if (maxValue >= 1e9) return { factor: 1e9, label: "B" };
+  if (maxValue >= 1e6) return { factor: 1e6, label: "M" };
+  if (maxValue >= 1e3) return { factor: 1e3, label: "K" };
+  return { factor: 1, label: "" };
+}
+
 function buildSankeyPlot(parent, data, period, fxNote) {
+  const maxVal = data.links.reduce((m, l) => Math.max(m, Math.abs(l.value)), 0);
+  const unit = pickSankeyUnit(maxVal);
+  const scaled = data.links.map((l) => l.value / unit.factor);
+
   parent.append(el("div", { className: "sankey-period" },
-    `Snapshot: ${period}${fxNote ? `  ·  ${fxNote}` : ""}`));
+    `Snapshot: ${period}  ·  Values in $${unit.label}${fxNote ? `  ·  ${fxNote}` : ""}`));
   const plot = el("div");
   parent.append(plot);
   setTimeout(() => {
     newPlot(plot, [{
-      type: "sankey", orientation: "h", arrangement: "snap", valueformat: ",.3s",
+      type: "sankey", orientation: "h", arrangement: "snap",
+      valueformat: ",.2f", valueprefix: "$", valuesuffix: unit.label,
       node: {
         label: data.nodes.map((n) => n.label),
         color: data.nodes.map((n) => n.color),
@@ -719,10 +731,10 @@ function buildSankeyPlot(parent, data, period, fxNote) {
       link: {
         source: data.links.map((l) => l.source),
         target: data.links.map((l) => l.target),
-        value:  data.links.map((l) => l.value),
+        value:  scaled,
         color:  data.links.map((l) => l.color),
       },
-      hovertemplate: "%{source.label} → %{target.label}<br>%{value:,.0f}<extra></extra>",
+      hovertemplate: `%{source.label} → %{target.label}<br>$%{value:,.2f}${unit.label}<extra></extra>`,
     }], Object.assign({}, DARK_LAYOUT, {
       height: 260,
       margin: { l: 6, r: 6, t: 6, b: 6 },
