@@ -88,10 +88,41 @@ function ratingOf(text) {
   return null;
 }
 
+/**
+ * Strip LaTeX text-styling commands that LLMs frequently produce — e.g.
+ * `$\text{Bullish}$` → `Bullish`, `$\textbf{BUY}$` → `**BUY**`. Genuine math
+ * and dollar amounts (`$50/share`) are left alone since the regexes require
+ * `\<command>{` immediately after the leading `$`.
+ */
+function stripLatexStyling(md) {
+  if (!md) return md;
+  const patterns = [
+    ["text",        "%s"],
+    ["mathrm",      "%s"],
+    ["textbf",      "**%s**"],
+    ["mathbf",      "**%s**"],
+    ["boldsymbol",  "**%s**"],
+    ["textit",      "*%s*"],
+    ["mathit",      "*%s*"],
+    ["emph",        "*%s*"],
+    ["boxed",       "**%s**"],
+  ];
+  let out = md;
+  for (const [cmd, tmpl] of patterns) {
+    out = out.replace(new RegExp("\\$\\$\\s*\\\\" + cmd + "\\{([^}]*)\\}\\s*\\$\\$", "g"),
+                      tmpl.replace("%s", "$1"));
+    out = out.replace(new RegExp("\\$\\s*\\\\" + cmd + "\\{([^}]*)\\}\\s*\\$", "g"),
+                      tmpl.replace("%s", "$1"));
+    out = out.replace(new RegExp("\\\\" + cmd + "\\{([^}]*)\\}", "g"),
+                      tmpl.replace("%s", "$1"));
+  }
+  return out;
+}
+
 function renderMarkdown(md) {
   if (!md) return "";
   // marked has GFM enabled by default in v12.
-  const html = window.marked.parse(md, { gfm: true, breaks: false });
+  const html = window.marked.parse(stripLatexStyling(md), { gfm: true, breaks: false });
   // Sanitize: marked output is HTML; we trust our own report files but still
   // strip <script> as a belt-and-braces measure.
   return html.replace(/<script[\s\S]*?<\/script>/gi, "");
