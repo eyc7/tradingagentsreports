@@ -10,6 +10,7 @@
   "research_decision": "sell",
   "trader_decision": "sell",
   "portfolio_decision": "sell",
+  "analysis_decision": "buy",
   "llm_provider": "ollama",
   "deep_think_llm": "gemma4:31b",
   "reports": [

@@ -284,9 +284,10 @@ function buildHomeView(manifest) {
 function buildRunCard(r) {
   const finalRating = r.rating || ratingOf(r.decision_preview);
   const stages = [
-    { label: "Research", rating: r.research_decision },
-    { label: "Trader",   rating: r.trader_decision   },
-    { label: "Portfolio",rating: r.portfolio_decision},
+    { label: "Analysis", rating: r.analysis_decision  },
+    { label: "Research", rating: r.research_decision  },
+    { label: "Trader",   rating: r.trader_decision    },
+    { label: "Portfolio",rating: r.portfolio_decision },
   ];
   const hasChain = stages.some((s) => s.rating);
   const created = r.created_at_iso
@@ -295,8 +296,7 @@ function buildRunCard(r) {
 
   const chainNode = hasChain
     ? el("div", { className: "decision-chain", title: "Each judge's call along the way" },
-        ...stages.map((s, i) => el("span", { className: "decision-chain-step" },
-          i > 0 ? el("span", { className: "decision-chain-arrow" }, "→") : null,
+        ...stages.map((s) => el("span", { className: "decision-chain-step" },
           el("span", { className: "decision-chain-label" }, s.label),
           s.rating
             ? el("span", { className: `rating-pill ${s.rating} inline` }, s.rating.toUpperCase())

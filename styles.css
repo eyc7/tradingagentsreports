@@ -145,7 +145,7 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px dashed var(--bg-3);
@@ -153,7 +153,6 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
 }
 .decision-chain-step { display: inline-flex; align-items: center; gap: 4px; }
 .decision-chain-label { color: var(--muted); }
-.decision-chain-arrow { color: var(--muted); opacity: 0.6; }
 .decision-chain-empty { color: var(--muted); opacity: 0.6; padding: 0 4px; }
 
 /* ----- RUN PAGE ----- */

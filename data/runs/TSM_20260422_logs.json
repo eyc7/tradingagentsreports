@@ -10,6 +10,7 @@
   "research_decision": "buy",
   "trader_decision": "buy",
   "portfolio_decision": "buy",
+  "analysis_decision": "buy",
   "llm_provider": null,
   "deep_think_llm": null,
   "reports": [

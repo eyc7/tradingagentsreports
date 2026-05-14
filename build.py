@@ -132,6 +132,8 @@ class Run:
     research_decision: str | None
     trader_decision: str | None
     portfolio_decision: str | None
+    # Majority of the 4 analyst-team reports' BUY/SELL/HOLD signals.
+    analysis_decision: str | None = None
     llm_provider: str | None = None
     deep_think_llm: str | None = None
     reports: list[Report] = field(default_factory=list)
@@ -227,6 +229,26 @@ def synthesize_complete_report(ticker: str, trade_date: str, reports: list[Repor
     return "\n".join(sections)
 
 
+_ANALYST_REPORT_KEYS = ("market_report", "sentiment_report", "news_report", "fundamentals_report")
+
+
+def _majority_rating(ratings: list[str | None]) -> str | None:
+    """Most common 'buy'/'sell'/'hold' across analyst signals. Tie-break:
+    SELL > BUY > HOLD (when there's a real signal, surface it; conservative
+    bias when SELL and BUY tie since this is a risk dashboard)."""
+    votes = [r for r in ratings if r]
+    if not votes:
+        return None
+    counts: dict[str, int] = {"buy": 0, "sell": 0, "hold": 0}
+    for v in votes:
+        counts[v] = counts.get(v, 0) + 1
+    top = max(counts.values())
+    for choice in ("sell", "buy", "hold"):
+        if counts[choice] == top:
+            return choice
+    return None
+
+
 def finalize_run(run: Run) -> Run:
     """Fill in rating/decision fields from the run's collected reports."""
     by_key = {r.key: r for r in run.reports}
@@ -239,6 +261,12 @@ def finalize_run(run: Run) -> Run:
     run.research_decision = parse_rating(research_text)
     run.trader_decision = parse_rating(trader_text)
     run.portfolio_decision = parse_rating(portfolio_text)
+    if run.analysis_decision is None:
+        analyst_ratings = [
+            parse_rating((by_key.get(k) or Report("", "", "", "", "")).content)
+            for k in _ANALYST_REPORT_KEYS
+        ]
+        run.analysis_decision = _majority_rating(analyst_ratings)
     if run.complete_report is None and run.reports:
         run.complete_report = synthesize_complete_report(run.ticker, run.trade_date, run.reports)
     return run
@@ -493,6 +521,11 @@ def scan_web_run(run_dir: Path) -> Run | None:
         research_decision=parse_rating(meta.get("research_decision")) or parse_rating(latest_report.get("investment_plan")),
         trader_decision=parse_rating(meta.get("trader_decision")) or parse_rating(latest_report.get("trader_investment_plan")),
         portfolio_decision=parse_rating(meta.get("portfolio_decision")) or parse_rating(latest_report.get("final_trade_decision")),
+        analysis_decision=(parse_rating(meta.get("analysis_decision"))
+                            or _majority_rating([
+                                parse_rating(latest_report.get(k))
+                                for k in _ANALYST_REPORT_KEYS
+                            ])),
         llm_provider=(meta.get("config") or {}).get("llm_provider"),
         deep_think_llm=(meta.get("config") or {}).get("deep_think_llm"),
         reports=reports,
@@ -571,6 +604,7 @@ def serialize_run_summary(run: Run) -> dict:
         "created_at_iso": run.created_at_iso,
         "source": run.source,
         "rating": run.rating,
+        "analysis_decision": run.analysis_decision,
         "research_decision": run.research_decision,
         "trader_decision": run.trader_decision,
         "portfolio_decision": run.portfolio_decision,
