@@ -141,6 +141,19 @@ input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(
 }
 .badge.completed { background: #0e3a1f; color: var(--green); }
 
+.runs-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+  margin: 0 0 12px;
+}
+.runs-filter input[type="date"] { width: auto; }
+.runs-filter select { width: auto; min-width: 140px; background: var(--bg-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font-size: 14px; }
+.runs-filter input { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font-size: 14px; }
+.runs-filter button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px; font-size: 14px; cursor: pointer; }
+.runs-filter button.secondary:hover { background: var(--bg-2); }
+
 .decision-chain {
   display: flex;
   flex-wrap: wrap;

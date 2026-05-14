@@ -236,29 +236,59 @@ async function renderHome(root) {
 }
 
 function buildHomeView(manifest) {
+  const runs = manifest.runs || [];
+  const runListEl = el("div", { className: "run-list" });
+  const categoryOf = (window.TAcategories && window.TAcategories.categoryOf) || (() => null);
+  const CATEGORIES = (window.TAcategories && window.TAcategories.CATEGORIES) || [];
+
   const tickerInput = el("input", {
     type: "search",
     placeholder: "filter by ticker…",
-    oninput: () => filterRuns(),
+    oninput: () => applyFilters(),
+    style: { flex: "1", minWidth: "0" },
   });
 
-  const runs = manifest.runs || [];
-  const runListEl = el("div", { className: "run-list" });
+  const categorySelect = el("select", { onchange: () => applyFilters() },
+    el("option", { value: "" }, "All categories"),
+    ...CATEGORIES.map((c) => el("option", { value: c.name }, `${c.name} (${c.weight}%)`)),
+  );
 
-  function filterRuns() {
+  const fromInput = el("input", { type: "date", title: "From (created on or after)",
+    onchange: () => applyFilters() });
+  const toInput   = el("input", { type: "date", title: "To (created on or before)",
+    onchange: () => applyFilters() });
+
+  const clearBtn = el("button", {
+    type: "button", className: "secondary",
+    onclick: () => {
+      tickerInput.value = ""; categorySelect.value = "";
+      fromInput.value = "";   toInput.value = "";
+      applyFilters();
+    },
+  }, "Clear");
+
+  function applyFilters() {
     const needle = tickerInput.value.trim().toUpperCase();
+    const cat = categorySelect.value;
+    const fromTs = fromInput.value ? new Date(fromInput.value + "T00:00:00").getTime() / 1000 : null;
+    const toTs   = toInput.value   ? new Date(toInput.value   + "T23:59:59.999").getTime() / 1000 : null;
+    const filtered = runs.filter((r) => {
+      if (needle && !r.ticker.toUpperCase().includes(needle)) return false;
+      if (cat && categoryOf(r.ticker) !== cat) return false;
+      if (fromTs != null && (r.created_at || 0) < fromTs) return false;
+      if (toTs   != null && (r.created_at || 0) > toTs)   return false;
+      return true;
+    });
     runListEl.replaceChildren();
-    const filtered = needle
-      ? runs.filter((r) => r.ticker.includes(needle))
-      : runs;
     if (filtered.length === 0) {
+      const anyFilter = needle || cat || fromInput.value || toInput.value;
       runListEl.append(el("p", { className: "meta" },
-        needle ? `No runs match "${needle}".` : "No runs found."));
+        anyFilter ? "No runs match the current filter." : "No runs found."));
       return;
     }
     for (const r of filtered) runListEl.append(buildRunCard(r));
   }
-  filterRuns();
+  applyFilters();
 
   return el("div", { className: "home" },
     el("aside", { className: "intro" },
@@ -271,12 +301,11 @@ function buildHomeView(manifest) {
         runs[0] && manifest.generated_at
           ? ` · last built ${new Date(manifest.generated_at).toLocaleString()}`
           : ""),
-      el("div", { className: "filter-row" },
-        el("label", null, "Filter"),
-        tickerInput),
     ),
     el("section", { className: "runs" },
       el("h2", null, "Recent runs"),
+      el("div", { className: "runs-filter" },
+        tickerInput, categorySelect, fromInput, toInput, clearBtn),
       runListEl),
   );
 }
