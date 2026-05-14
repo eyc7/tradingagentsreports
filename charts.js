@@ -256,25 +256,32 @@ function toAnnualFromQuarterly(stmt) {
     indicesByYear[y].push(i);
   });
   if (years.length === 0) return null;
+
+  // For flow statements, only keep fiscal years where we have all 4 quarters.
+  // This prevents partial leading/trailing years (typical from yfinance's
+  // ~5-quarter window) from rendering as misleadingly tiny bars.
+  const keptYears = isFlow ? years.filter((y) => indicesByYear[y].length >= 4) : years;
+  if (keptYears.length === 0) return null;
+
   const annualRows = {};
   for (const metric of Object.keys(stmt.rows)) {
     const vals = stmt.rows[metric];
-    annualRows[metric] = years.map((y) => {
+    annualRows[metric] = keptYears.map((y) => {
       const idxs = indicesByYear[y];
       if (isFlow) {
-        if (idxs.length < 4) return null;
         let sum = 0;
+        let allPresent = true;
         for (const i of idxs) {
           const v = vals[i];
-          if (v == null) return null;
+          if (v == null) { allPresent = false; break; }
           sum += v;
         }
-        return sum;
+        return allPresent ? sum : null;
       }
       return vals[idxs[idxs.length - 1]] != null ? vals[idxs[idxs.length - 1]] : null;
     });
   }
-  return { ticker: stmt.ticker, kind: stmt.kind, freq: "annual", periods: years, rows: annualRows };
+  return { ticker: stmt.ticker, kind: stmt.kind, freq: "annual", periods: keptYears, rows: annualRows };
 }
 
 function classifyTool(call) {
@@ -563,24 +570,17 @@ function buildFinancialStatementCard(container, stmt) {
     stmt.kind === "income" ? INCOME_METRICS
     : stmt.kind === "balance" ? BALANCE_METRICS
     : CASHFLOW_METRICS;
-  const freqLabel = stmt.freq === "quarterly" ? "Quarterly + Annual" : "Annual";
-  const annual = stmt.freq === "quarterly" ? toAnnualFromQuarterly(stmt) : null;
+  const freqLabel = stmt.freq === "quarterly" ? "Quarterly" : "Annual";
   const fx = reportingCurrency(stmt.ticker);
-  const note =
-    (stmt.kind !== "balance" && annual ? "  ·  TTM sum for annual" : "") +
-    (fx ? `  ·  Converted ${fx.code} → USD @ ${fx.rate.toFixed(2)} (${fx.asOf})` : "");
+  const note = fx ? `  ·  Converted ${fx.code} → USD @ ${fx.rate.toFixed(2)} (${fx.asOf})` : "";
 
   const grid = el("div", { className: "fin-grid" });
   for (const m of metrics) {
     const row = pickRow(stmt.rows, m.aliases);
     if (!row) continue;
-    const annualRow = annual ? pickRow(annual.rows, m.aliases) : null;
     const isPerShare = /eps/i.test(m.title);
-    const values    = isPerShare ? row.values         : seriesToUsd(row.values, fx);
-    const annualVal = isPerShare ? (annualRow && annualRow.values)
-                                 : (annualRow ? seriesToUsd(annualRow.values, fx) : undefined);
-    grid.append(buildMetricCard(m.title, stmt.periods, values, stmt.freq,
-                                annual && annual.periods, annualVal));
+    const values = isPerShare ? row.values : seriesToUsd(row.values, fx);
+    grid.append(buildMetricCard(m.title, stmt.periods, values, stmt.freq));
   }
 
   container.append(el("div", { className: "chart-card" },
@@ -594,10 +594,9 @@ function buildFinancialStatementCard(container, stmt) {
   ));
 }
 
-function buildMetricCard(title, periods, values, freq, annualPeriods, annualValues) {
+function buildMetricCard(title, periods, values, freq) {
   const last = values[values.length - 1];
   const { qoq, yoy } = qoqYoy(values);
-  const annualYoy = annualValues ? lastPctChange(annualValues) : null;
 
   const card = el("div", { className: "fin-card" },
     el("div", { className: "fin-card-title" }, title),
@@ -609,21 +608,12 @@ function buildMetricCard(title, periods, values, freq, annualPeriods, annualValu
         : null,
     ),
   );
-  card.append(buildBarRow("Quarterly", periods, values, false));
-  if (annualPeriods && annualValues && annualValues.some((v) => v != null)) {
-    const annualLabel = el("span", null,
-      el("span", null, "Annual"),
-      " ",
-      el("span", { className: deltaClass(annualYoy).replace("delta ", "delta inline ") }, `YoY ${formatPct(annualYoy)}`),
-    );
-    card.append(buildBarRow(annualLabel, annualPeriods, annualValues, true));
-  }
+  card.append(buildBarRow(periods, values));
   return card;
 }
 
-function buildBarRow(label, periods, values, isAnnual) {
-  const baseColor = isAnnual ? "#bc8cff" : "#58a6ff";
-  const colors = values.map((v) => (v != null && v < 0 ? "#f85149" : baseColor));
+function buildBarRow(periods, values) {
+  const colors = values.map((v) => (v != null && v < 0 ? "#f85149" : "#58a6ff"));
   const plot = el("div");
   const wrap = el("div", { className: "fin-card-bar" },
     el("div", { className: "fin-card-bar-label" }, label),
