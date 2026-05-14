@@ -142,17 +142,52 @@ class Run:
 # ---------- helpers ---------------------------------------------------------
 
 
+_RATING_PATTERNS = (
+    # Portfolio Manager: "**Rating**: Sell"
+    re.compile(r"\*{0,2}\s*Rating\s*\*{0,2}\s*[:\-—]\s*\*{0,2}\s*(BUY|SELL|HOLD)\b",
+               re.IGNORECASE),
+    # Trader: "FINAL TRANSACTION PROPOSAL: **SELL**"
+    re.compile(r"FINAL\s+TRANSACTION\s+PROPOSAL\s*[:\-—]?\s*\*{0,2}\s*(BUY|SELL|HOLD)\b",
+               re.IGNORECASE),
+    re.compile(r"FINAL\s+(?:TRADE\s+)?DECISION\s*[:\-—]?\s*\*{0,2}\s*(BUY|SELL|HOLD)\b",
+               re.IGNORECASE),
+    # Action-verb phrasings: "issuing a Buy", "aligning with the bull on Sell".
+    re.compile(r"\b(?:issuing|recommending|calling\s+for|going\s+with|aligning\s+with|"
+               r"placing|making)\s+(?:a|an|the)?\s*\*{0,2}\s*(BUY|SELL|HOLD)\b",
+               re.IGNORECASE),
+    # Reverse-syntax: "Buy recommendation", "Sell decision".
+    re.compile(r"\b(BUY|SELL|HOLD)\b\s*\*{0,2}\s+"
+               r"(?:recommendation|decision|rating|call|verdict|conclusion|signal|stance)\b",
+               re.IGNORECASE),
+    # Forward-syntax: "recommendation is a Buy", "verdict — Hold".
+    re.compile(r"\b(?:recommendation|decision|rating|call|verdict|conclusion|stance)"
+               r"[^.]{0,80}?\b(BUY|SELL|HOLD)\b",
+               re.IGNORECASE),
+)
+_BOLD_RATING_RE = re.compile(r"\*\*\s*(BUY|SELL|HOLD)\s*\*\*", re.IGNORECASE)
+_BARE_RATING_RE = re.compile(r"\b(BUY|SELL|HOLD)\b", re.IGNORECASE)
+
+
 def parse_rating(text: str | None) -> str | None:
-    """Return 'buy' | 'sell' | 'hold' | None. BUY wins ties (matches web UI)."""
+    """Return 'buy' | 'sell' | 'hold' | None.
+
+    Tiered extraction (mirrors web/backend/runner.py): structured markers
+    first, then action-verb phrasings, then a last-mention fallback. The
+    older first-mention / "BUY-anywhere wins" heuristics misclassify any
+    judge report that quotes bull/bear positions before stating its call.
+    """
     if not text:
         return None
-    upper = text.upper()
-    if re.search(r"\bBUY\b", upper):
-        return "buy"
-    if re.search(r"\bSELL\b", upper):
-        return "sell"
-    if re.search(r"\bHOLD\b", upper):
-        return "hold"
+    for pat in _RATING_PATTERNS:
+        m = pat.search(text)
+        if m:
+            return m.group(1).lower()
+    bolds = list(_BOLD_RATING_RE.finditer(text))
+    if bolds:
+        return bolds[-1].group(1).lower()
+    bares = list(_BARE_RATING_RE.finditer(text))
+    if bares:
+        return bares[-1].group(1).lower()
     return None
 
 

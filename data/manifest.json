@@ -1,6 +1,38 @@
 {
-  "generated_at": "2026-05-13T23:36:04.302730Z",
+  "generated_at": "2026-05-14T18:07:27.641330Z",
   "runs": [
+    {
+      "id": "CAT_20260514_web_a32ee089",
+      "ticker": "CAT",
+      "trade_date": "2026-05-14",
+      "created_at": 1778777546.027819,
+      "created_at_iso": "2026-05-14T09:52:26.027819",
+      "source": "web",
+      "rating": "sell",
+      "research_decision": "sell",
+      "trader_decision": "sell",
+      "portfolio_decision": "sell",
+      "report_count": 12,
+      "tool_count": 19,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
+    {
+      "id": "BE_20260514_web_fad4710d",
+      "ticker": "BE",
+      "trade_date": "2026-05-14",
+      "created_at": 1778717322.5082219,
+      "created_at_iso": "2026-05-13T17:08:42.508222",
+      "source": "web",
+      "rating": "sell",
+      "research_decision": "sell",
+      "trader_decision": "sell",
+      "portfolio_decision": "sell",
+      "report_count": 12,
+      "tool_count": 16,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
     {
       "id": "ASTS_20260513_web_5a5285d8",
       "ticker": "ASTS",
@@ -25,7 +57,7 @@
       "created_at_iso": "2026-05-13T13:40:50.252840",
       "source": "web",
       "rating": "buy",
-      "research_decision": "hold",
+      "research_decision": "buy",
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
