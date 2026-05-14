@@ -1,6 +1,40 @@
 {
-  "generated_at": "2026-05-14T18:29:13.096136Z",
+  "generated_at": "2026-05-14T22:43:40.827017Z",
   "runs": [
+    {
+      "id": "AMZN_20260514_web_885477b1",
+      "ticker": "AMZN",
+      "trade_date": "2026-05-14",
+      "created_at": 1778794327.9417758,
+      "created_at_iso": "2026-05-14T14:32:07.941776",
+      "source": "web",
+      "rating": "buy",
+      "analysis_decision": "hold",
+      "research_decision": "buy",
+      "trader_decision": "buy",
+      "portfolio_decision": "buy",
+      "report_count": 12,
+      "tool_count": 16,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
+    {
+      "id": "TSLA_20260514_web_122b0c99",
+      "ticker": "TSLA",
+      "trade_date": "2026-05-14",
+      "created_at": 1778790035.970871,
+      "created_at_iso": "2026-05-14T13:20:35.970871",
+      "source": "web",
+      "rating": "buy",
+      "analysis_decision": "hold",
+      "research_decision": "buy",
+      "trader_decision": "buy",
+      "portfolio_decision": "buy",
+      "report_count": 12,
+      "tool_count": 16,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
     {
       "id": "CAT_20260514_web_a32ee089",
       "ticker": "CAT",
