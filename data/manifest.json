@@ -1,6 +1,102 @@
 {
-  "generated_at": "2026-05-12T22:52:55.014526Z",
+  "generated_at": "2026-05-13T23:36:04.302730Z",
   "runs": [
+    {
+      "id": "ASTS_20260513_web_5a5285d8",
+      "ticker": "ASTS",
+      "trade_date": "2026-05-13",
+      "created_at": 1778708537.06521,
+      "created_at_iso": "2026-05-13T14:42:17.065210",
+      "source": "web",
+      "rating": "sell",
+      "research_decision": "sell",
+      "trader_decision": "sell",
+      "portfolio_decision": "sell",
+      "report_count": 12,
+      "tool_count": 16,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
+    {
+      "id": "META_20260513_web_b856e2f8",
+      "ticker": "META",
+      "trade_date": "2026-05-13",
+      "created_at": 1778704850.25284,
+      "created_at_iso": "2026-05-13T13:40:50.252840",
+      "source": "web",
+      "rating": "buy",
+      "research_decision": "hold",
+      "trader_decision": "buy",
+      "portfolio_decision": "buy",
+      "report_count": 12,
+      "tool_count": 16,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
+    {
+      "id": "COST_20260513_web_a047c750",
+      "ticker": "COST",
+      "trade_date": "2026-05-13",
+      "created_at": 1778697687.3847558,
+      "created_at_iso": "2026-05-13T11:41:27.384756",
+      "source": "web",
+      "rating": "sell",
+      "research_decision": "sell",
+      "trader_decision": "sell",
+      "portfolio_decision": "sell",
+      "report_count": 12,
+      "tool_count": 16,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
+    {
+      "id": "RKLB_20260513_web_188aaf36",
+      "ticker": "RKLB",
+      "trade_date": "2026-05-13",
+      "created_at": 1778692300.510068,
+      "created_at_iso": "2026-05-13T10:11:40.510068",
+      "source": "web",
+      "rating": "sell",
+      "research_decision": "sell",
+      "trader_decision": "sell",
+      "portfolio_decision": "sell",
+      "report_count": 12,
+      "tool_count": 16,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
+    {
+      "id": "SNOW_20260513_web_b7239696",
+      "ticker": "SNOW",
+      "trade_date": "2026-05-13",
+      "created_at": 1778685358.8941782,
+      "created_at_iso": "2026-05-13T08:15:58.894178",
+      "source": "web",
+      "rating": "buy",
+      "research_decision": "buy",
+      "trader_decision": "buy",
+      "portfolio_decision": "buy",
+      "report_count": 12,
+      "tool_count": 16,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
+    {
+      "id": "MSFT_20260513_web_06671737",
+      "ticker": "MSFT",
+      "trade_date": "2026-05-13",
+      "created_at": 1778645590.992907,
+      "created_at_iso": "2026-05-12T21:13:10.992907",
+      "source": "web",
+      "rating": "buy",
+      "research_decision": "buy",
+      "trader_decision": "buy",
+      "portfolio_decision": "buy",
+      "report_count": 12,
+      "tool_count": 17,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
     {
       "id": "NOW_20260512_web_1ec55ab0",
       "ticker": "NOW",
@@ -13,6 +109,7 @@
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
+      "tool_count": 18,
       "llm_provider": "ollama",
       "deep_think_llm": "gemma4:31b"
     },
@@ -28,6 +125,7 @@
       "trader_decision": "sell",
       "portfolio_decision": "sell",
       "report_count": 12,
+      "tool_count": 16,
       "llm_provider": "ollama",
       "deep_think_llm": "gemma4:31b"
     },
@@ -43,6 +141,7 @@
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
+      "tool_count": 16,
       "llm_provider": "ollama",
       "deep_think_llm": "gemma4:31b"
     },
@@ -58,6 +157,7 @@
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
+      "tool_count": 16,
       "llm_provider": "ollama",
       "deep_think_llm": "gemma4:31b"
     },
@@ -73,6 +173,7 @@
       "trader_decision": "sell",
       "portfolio_decision": "sell",
       "report_count": 12,
+      "tool_count": 17,
       "llm_provider": "ollama",
       "deep_think_llm": "gemma4:31b"
     },
@@ -88,6 +189,7 @@
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
+      "tool_count": 20,
       "llm_provider": "ollama",
       "deep_think_llm": "gemma4:31b"
     },
@@ -103,6 +205,7 @@
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
+      "tool_count": 16,
       "llm_provider": "ollama",
       "deep_think_llm": "gemma4:31b"
     },
@@ -118,6 +221,7 @@
       "trader_decision": "sell",
       "portfolio_decision": "sell",
       "report_count": 12,
+      "tool_count": 19,
       "llm_provider": "ollama",
       "deep_think_llm": "gemma4:31b"
     },
@@ -133,6 +237,7 @@
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
+      "tool_count": 0,
       "llm_provider": null,
       "deep_think_llm": null
     },
@@ -148,6 +253,7 @@
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
+      "tool_count": 0,
       "llm_provider": null,
       "deep_think_llm": null
     },
@@ -163,6 +269,7 @@
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
+      "tool_count": 0,
       "llm_provider": null,
       "deep_think_llm": null
     },
@@ -178,6 +285,7 @@
       "trader_decision": "buy",
       "portfolio_decision": "buy",
       "report_count": 12,
+      "tool_count": 0,
       "llm_provider": null,
       "deep_think_llm": null
     }

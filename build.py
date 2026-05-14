@@ -110,6 +110,16 @@ class Report:
 
 
 @dataclass
+class ToolCall:
+    tool: str
+    agent: str | None
+    agent_label: str | None
+    args: object            # parsed dict if we could parse, else raw string
+    result: str | None      # may be None if the run crashed before the tool returned
+    ts: float
+
+
+@dataclass
 class Run:
     id: str
     ticker: str
@@ -125,6 +135,7 @@ class Run:
     llm_provider: str | None = None
     deep_think_llm: str | None = None
     reports: list[Report] = field(default_factory=list)
+    tool_calls: list[ToolCall] = field(default_factory=list)
     complete_report: str | None = None
 
 
@@ -290,6 +301,84 @@ REPORT_KEY_TO_AGENT: dict[str, str] = {
 }
 
 
+def _handle_tool_call(
+    e: dict,
+    tool_calls: list[ToolCall],
+    unmatched_by_tool: dict[str, list[int]],
+) -> None:
+    """Mirror the live reducer's chunk-merge: tool_call events arrive as
+    streaming fragments; merge consecutive same-tool calls within 0.5s."""
+    tool = e.get("tool")
+    if not tool:
+        return
+    args = e.get("args", "")
+    ts = float(e.get("ts") or 0.0)
+
+    if tool_calls:
+        last = tool_calls[-1]
+        if last.tool == tool and last.result is None and abs(ts - last.ts) < 0.5:
+            # Continuation chunk — append args (model streams arg JSON as
+            # successive string fragments).
+            last.args = _merge_args(last.args, args)
+            return
+
+    tool_calls.append(ToolCall(
+        tool=tool,
+        agent=e.get("agent"),
+        agent_label=e.get("label"),
+        args=args,
+        result=None,
+        ts=ts,
+    ))
+    unmatched_by_tool.setdefault(tool, []).append(len(tool_calls) - 1)
+
+
+def _handle_tool_result(
+    e: dict,
+    tool_calls: list[ToolCall],
+    unmatched_by_tool: dict[str, list[int]],
+) -> None:
+    tool = e.get("tool")
+    if not tool:
+        return
+    result = e.get("result")
+    queue = unmatched_by_tool.get(tool)
+    if not queue:
+        # Tool result without a matching call (rare — possibly a replay artefact).
+        # Attach as a synthetic call so the user can still see the result.
+        tool_calls.append(ToolCall(
+            tool=tool, agent=None, agent_label=None,
+            args=None, result=result, ts=float(e.get("ts") or 0.0),
+        ))
+        return
+    idx = queue.pop(0)
+    tool_calls[idx].result = result
+
+
+def _merge_args(prev: object, new: object) -> object:
+    """Concatenate args fragments from streaming tool_call events."""
+    if isinstance(prev, str) and isinstance(new, str):
+        return prev + new
+    if prev is None or prev == "":
+        return new
+    if new is None or new == "":
+        return prev
+    # Mismatched shapes — take the newer one.
+    return new
+
+
+def _finalize_tool_args(tool_calls: list[ToolCall]) -> None:
+    """Parse each tool_call's `args` from streamed JSON string to a real dict
+    where possible. Keeps the raw string on failure so the Tools tab still
+    has something to show."""
+    for tc in tool_calls:
+        if isinstance(tc.args, str):
+            try:
+                tc.args = json.loads(tc.args)
+            except (json.JSONDecodeError, ValueError):
+                pass  # leave as raw string
+
+
 def scan_web_run(run_dir: Path) -> Run | None:
     meta_path = run_dir / "run.json"
     events_path = run_dir / "events.jsonl"
@@ -307,8 +396,15 @@ def scan_web_run(run_dir: Path) -> Run | None:
     if not ticker or not trade_date:
         return None
 
-    # Walk events.jsonl and capture the *last* report per report_key.
+    # Walk events.jsonl once and capture three threads of state:
+    #   - latest_report:  most recent body per report_key
+    #   - tool_calls:     stitched tool_call chunks paired with their tool_results
     latest_report: dict[str, str] = {}
+    tool_calls: list[ToolCall] = []
+    # FIFO queues of indices-into-tool_calls per tool name, used to match each
+    # incoming `tool_result` with the next unfulfilled call of the same name.
+    unmatched_by_tool: dict[str, list[int]] = {}
+
     with events_path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -318,11 +414,16 @@ def scan_web_run(run_dir: Path) -> Run | None:
                 e = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if e.get("type") == "report":
+            etype = e.get("type")
+            if etype == "report":
                 key = e.get("report_key")
                 body = e.get("report")
                 if key and body:
                     latest_report[key] = body
+            elif etype == "tool_call":
+                _handle_tool_call(e, tool_calls, unmatched_by_tool)
+            elif etype == "tool_result":
+                _handle_tool_result(e, tool_calls, unmatched_by_tool)
 
     reports: list[Report] = []
     for report_key, body in latest_report.items():
@@ -332,6 +433,8 @@ def scan_web_run(run_dir: Path) -> Run | None:
         reports.append(build_report(agent_key, body))
     if not reports:
         return None
+
+    _finalize_tool_args(tool_calls)
 
     created_at = float(meta.get("created_at") or 0) or run_dir.stat().st_mtime
     dt = datetime.fromtimestamp(created_at)
@@ -358,6 +461,7 @@ def scan_web_run(run_dir: Path) -> Run | None:
         llm_provider=(meta.get("config") or {}).get("llm_provider"),
         deep_think_llm=(meta.get("config") or {}).get("deep_think_llm"),
         reports=reports,
+        tool_calls=tool_calls,
         complete_report=synthesize_complete_report(ticker, trade_date, reports),
     )
     # finalize_run would overwrite the values from meta — only call it if we
@@ -436,6 +540,7 @@ def serialize_run_summary(run: Run) -> dict:
         "trader_decision": run.trader_decision,
         "portfolio_decision": run.portfolio_decision,
         "report_count": len(run.reports),
+        "tool_count": len(run.tool_calls),
         "llm_provider": run.llm_provider,
         "deep_think_llm": run.deep_think_llm,
     }

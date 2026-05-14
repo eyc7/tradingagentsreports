@@ -132,9 +132,18 @@ the same rule the live web UI uses.
 
 - No "New Run" form — the form is replaced with a small intro panel + ticker
   filter.
-- No token streaming, agent status dots, or tool-call tab. Every agent in
-  the sidebar is either reachable (had a report) or greyed out.
-- The middle pane shows either the agent's individual report or
-  `complete_report.md`; clicking a report card on the right swaps the focus.
-- Right panel keeps the decision banner and per-report cards from the
-  original `ToolPanel`.
+- No token streaming or agent status dots. Every agent in the sidebar is
+  either reachable (had a report) or greyed out.
+- The viewer pane has three tabs: **Reports** (decision banner +
+  `complete_report.md` or a single agent's report), **Charts** (price
+  candlestick with indicator overlays, fundamentals, and quarterly + annual
+  YoY bar graphs for income / balance / cash flow), and **Tools** (raw
+  agent tool calls + arguments + results).
+- Charts and Tools are populated only for runs sourced from
+  `~/.tradingagents/web/runs/` — the `reports/` and `~/.tradingagents/logs/`
+  sources don't carry tool-call data.
+
+## Layout (additional files)
+
+`charts.js` is the vanilla-JS port of `web/frontend/src/lib/parseTools.ts`
+and the React chart components, using Plotly loaded from a CDN.

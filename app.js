@@ -311,6 +311,11 @@ function buildRunView(run) {
 
   // Currently selected sidebar agent (null = show full complete_report).
   let selectedAgent = null;
+  // Which tab is showing in the viewer body.
+  let activeTab = "reports";  // "reports" | "charts" | "tools"
+
+  const toolCalls = run.tool_calls || [];
+  const chartCount = window.TAcharts ? window.TAcharts.countChartable(toolCalls) : 0;
 
   // Scroll helpers — work for both the desktop layout (viewer .body is the
   // scrollable parent) and mobile (the page itself scrolls).
@@ -337,15 +342,17 @@ function buildRunView(run) {
           className: [
             "agent-row",
             has ? "has-report" : "disabled",
-            active ? "active" : "",
+            active && activeTab === "reports" ? "active" : "",
           ].filter(Boolean).join(" "),
           onclick: has
             ? () => {
-                selectedAgent = active ? null : a.key;
+                // Sidebar click always implies the Reports tab — switch first.
+                const switchedTab = activeTab !== "reports";
+                activeTab = "reports";
+                selectedAgent = (active && !switchedTab) ? null : a.key;
                 renderSidebar();
+                renderTabs();
                 renderViewer();
-                // Jump past the decision banner to the report the user just
-                // picked, instead of forcing them to scroll past the banner.
                 if (selectedAgent) scrollPastBanner();
                 else scrollToDecision();
               }
@@ -360,12 +367,14 @@ function buildRunView(run) {
     }
     // "Show full report" toggle at the bottom.
     sidebar.append(el("div", { className: "team", style: { marginTop: "10px" } }, "Other"));
-    const fullActive = selectedAgent === null;
+    const fullActive = selectedAgent === null && activeTab === "reports";
     sidebar.append(el("div", {
       className: `agent-row has-report ${fullActive ? "active" : ""}`,
       onclick: () => {
+        activeTab = "reports";
         selectedAgent = null;
         renderSidebar();
+        renderTabs();
         renderViewer();
         scrollPastBanner();
       },
@@ -387,11 +396,42 @@ function buildRunView(run) {
       )
     : null;
 
+  const tabsBar = el("div", { className: "viewer-tabs" });
+  function renderTabs() {
+    tabsBar.replaceChildren();
+    const make = (key, label, count) => el("button", {
+      className: `tab-btn ${activeTab === key ? "active" : ""}`,
+      onclick: () => { activeTab = key; renderSidebar(); renderTabs(); renderViewer(); },
+    }, count == null ? label : `${label} (${count})`);
+    tabsBar.append(make("reports", "Reports", (run.reports || []).length));
+    tabsBar.append(make("charts",  "Charts",  chartCount));
+    tabsBar.append(make("tools",   "Tools",   toolCalls.length));
+  }
+
   const viewerBody = el("div", { className: "body" });
   function renderViewer() {
     viewerBody.replaceChildren();
-    if (decisionBanner) viewerBody.append(decisionBanner);
 
+    if (activeTab === "charts") {
+      if (!window.TAcharts) {
+        viewerBody.append(el("div", { className: "empty-state" }, "Chart module not loaded."));
+        return;
+      }
+      window.TAcharts.renderChartsTab(viewerBody, toolCalls);
+      return;
+    }
+
+    if (activeTab === "tools") {
+      if (!window.TAcharts) {
+        viewerBody.append(el("div", { className: "empty-state" }, "Tools module not loaded."));
+        return;
+      }
+      window.TAcharts.renderToolsTab(viewerBody, toolCalls);
+      return;
+    }
+
+    // "reports" tab
+    if (decisionBanner) viewerBody.append(decisionBanner);
     if (selectedAgent) {
       const rep = reportsByAgent[selectedAgent];
       if (!rep) {
@@ -406,7 +446,6 @@ function buildRunView(run) {
       );
       viewerBody.append(wrap);
     } else if ((run.reports || []).length) {
-      // No bundled complete_report — show all reports sequentially as a fallback.
       for (const rep of run.reports) viewerBody.append(buildReportCard(rep));
     } else {
       viewerBody.append(el("div", { className: "empty-state" }, "This run has no reports."));
@@ -420,8 +459,6 @@ function buildRunView(run) {
       modelLine(run)
         ? el("span", { className: "meta" }, modelLine(run))
         : null,
-      el("span", { className: "meta" },
-        `${(run.reports || []).length} reports`),
       el("div", { style: { flex: 1 } }),
       run.decision
         ? el("button", {
@@ -431,10 +468,12 @@ function buildRunView(run) {
           }, "↑ Final Decision")
         : null,
     ),
+    tabsBar,
     viewerBody,
   );
 
   renderSidebar();
+  renderTabs();
   renderViewer();
   return el("div", { className: "run-page" }, sidebar, viewer);
 }
