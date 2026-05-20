@@ -50,6 +50,7 @@ AGENT_INFO: dict[str, tuple[str, str, str]] = {
     "social":         ("analysts", "Social Analyst",          "sentiment_report"),
     "news":           ("analysts", "News Analyst",            "news_report"),
     "fundamentals":   ("analysts", "Fundamentals Analyst",    "fundamentals_report"),
+    "competitor":     ("analysts", "Competitor Analyst",      "competitor_report"),
     "bull":           ("research", "Bull Researcher",         "bull_history"),
     "bear":           ("research", "Bear Researcher",         "bear_history"),
     "research_mgr":   ("research", "Research Manager",        "investment_plan"),
@@ -67,6 +68,7 @@ REPO_FILES: list[tuple[str, str, str]] = [
     ("1_analysts",   "sentiment.md",     "social"),
     ("1_analysts",   "news.md",          "news"),
     ("1_analysts",   "fundamentals.md",  "fundamentals"),
+    ("1_analysts",   "competitor.md",    "competitor"),
     ("2_research",   "bull.md",          "bull"),
     ("2_research",   "bear.md",          "bear"),
     ("2_research",   "manager.md",       "research_mgr"),
@@ -86,6 +88,7 @@ LOG_FILE_CANDIDATES: list[tuple[list[str], str]] = [
     (["sentiment_report.md", "social_analyst.md"],      "social"),
     (["news_report.md", "news_analyst.md"],             "news"),
     (["fundamentals_report.md", "fundamentals_analyst.md"], "fundamentals"),
+    (["competitor_report.md", "competitor_analyst.md"], "competitor"),
     (["bull_researcher.md"],                            "bull"),
     (["bear_researcher.md"],                            "bear"),
     (["research_manager.md", "investment_plan.md"],     "research_mgr"),
@@ -229,7 +232,7 @@ def synthesize_complete_report(ticker: str, trade_date: str, reports: list[Repor
     return "\n".join(sections)
 
 
-_ANALYST_REPORT_KEYS = ("market_report", "sentiment_report", "news_report", "fundamentals_report")
+_ANALYST_REPORT_KEYS = ("market_report", "sentiment_report", "news_report", "fundamentals_report", "competitor_report")
 
 
 def _majority_rating(ratings: list[str | None]) -> str | None:
