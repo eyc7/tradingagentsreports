@@ -1,6 +1,23 @@
 {
-  "generated_at": "2026-05-20T01:43:04.333481Z",
+  "generated_at": "2026-05-20T04:40:09.659652Z",
   "runs": [
+    {
+      "id": "RKLB_20260520_web_d3a82631",
+      "ticker": "RKLB",
+      "trade_date": "2026-05-20",
+      "created_at": 1779240687.5800781,
+      "created_at_iso": "2026-05-19T18:31:27.580078",
+      "source": "web",
+      "rating": "buy",
+      "analysis_decision": "hold",
+      "research_decision": "buy",
+      "trader_decision": "buy",
+      "portfolio_decision": "buy",
+      "report_count": 13,
+      "tool_count": 29,
+      "llm_provider": "ollama",
+      "deep_think_llm": "gemma4:31b"
+    },
     {
       "id": "SNDK_20260519_web_885cf5b7",
       "ticker": "SNDK",
